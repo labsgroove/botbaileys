@@ -39,10 +39,11 @@ export class WhatsAppService {
     const sock = await createSession(sessionId, {
       onIncomingMessage: (message) => {
         if (message.fromMe) {
+          ChatStore.addOutgoing(sessionId, message.jid, message.text, message.timestamp, message.id, message.name)
           return
         }
 
-        ChatStore.addIncoming(sessionId, message.jid, message.text, message.timestamp, message.name)
+        ChatStore.addIncoming(sessionId, message.jid, message.text, message.timestamp, message.name, message.id)
       },
       onHistoryMessage: (message) => {
         ChatStore.addHistory(sessionId, {
@@ -53,6 +54,9 @@ export class WhatsAppService {
           timestamp: message.timestamp,
           name: message.name
         })
+      },
+      onHistoryChat: (chat) => {
+        ChatStore.upsertHistoryChat(sessionId, chat)
       },
       onContactUpdate: (contact) => {
         ChatStore.upsertContact(sessionId, contact)

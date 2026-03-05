@@ -362,12 +362,19 @@ export class ChatStore {
     }
   }
 
-  static addIncoming(sessionId: string, jid: string, text: string, timestamp = Date.now(), name?: string) {
-    upsertMessage(sessionId, jid, text, false, timestamp, { name, countUnread: true })
+  static addIncoming(
+    sessionId: string,
+    jid: string,
+    text: string,
+    timestamp = Date.now(),
+    name?: string,
+    id?: string
+  ) {
+    upsertMessage(sessionId, jid, text, false, timestamp, { id, name, countUnread: true })
   }
 
-  static addOutgoing(sessionId: string, jid: string, text: string, timestamp = Date.now()) {
-    upsertMessage(sessionId, jid, text, true, timestamp)
+  static addOutgoing(sessionId: string, jid: string, text: string, timestamp = Date.now(), id?: string, name?: string) {
+    upsertMessage(sessionId, jid, text, true, timestamp, { id, name })
   }
 
   static addHistory(
@@ -389,6 +396,44 @@ export class ChatStore {
       payload.timestamp,
       { id: payload.id, name: payload.name, countUnread: false }
     )
+  }
+
+  static upsertHistoryChat(
+    sessionId: string,
+    payload: {
+      jid: string
+      name?: string
+      unread?: number
+      lastTimestamp?: number
+      lastMessage?: string
+    }
+  ) {
+    const session = ensureSession(sessionId)
+    const chat = ensureChat(session, payload.jid)
+
+    if (!chat) {
+      return
+    }
+
+    const normalizedName = payload.name?.trim()
+    if (normalizedName) {
+      chat.meta.name = normalizedName
+    }
+
+    const normalizedUnread = Number(payload.unread)
+    if (Number.isFinite(normalizedUnread) && normalizedUnread >= 0) {
+      chat.meta.unread = Math.max(chat.meta.unread, Math.floor(normalizedUnread))
+    }
+
+    const normalizedTimestamp = Number(payload.lastTimestamp)
+    if (Number.isFinite(normalizedTimestamp) && normalizedTimestamp > chat.meta.lastTimestamp) {
+      chat.meta.lastTimestamp = normalizedTimestamp
+    }
+
+    const normalizedLastMessage = payload.lastMessage?.trim()
+    if (normalizedLastMessage && !chat.meta.lastMessage) {
+      chat.meta.lastMessage = normalizedLastMessage
+    }
   }
 
   static resolveChatJid(sessionId: string, jid: string) {

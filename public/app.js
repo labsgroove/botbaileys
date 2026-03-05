@@ -260,16 +260,21 @@ async function loadChats() {
   if (!state.sessionId) return
   const data = await callApi(`/session/${encodeURIComponent(state.sessionId)}/chats`)
   state.chats = Array.isArray(data.chats) ? data.chats : []
+  let shouldRenderMessages = !state.activeJid
 
-  if (state.activeJid && !state.chats.length) {
-    state.activeJid = null
-    state.activeMessages = []
-    state.activeMessagesSignature = '0'
+  if (state.activeJid) {
+    const hasActiveChat = state.chats.some((chat) => chat.jid === state.activeJid)
+    if (!hasActiveChat) {
+      state.activeJid = null
+      state.activeMessages = []
+      state.activeMessagesSignature = '0'
+      shouldRenderMessages = true
+    }
   }
 
   renderChats()
 
-  if (!state.activeJid) {
+  if (shouldRenderMessages) {
     renderMessages()
   }
 }
@@ -387,6 +392,10 @@ async function startSessionConnection(sessionId) {
   stopConnectionPolling()
   stopHistoryRefresh()
   state.sessionId = sessionId
+  state.chats = []
+  state.activeJid = null
+  state.activeMessages = []
+  state.activeMessagesSignature = '0'
   elements.sessionLabel.textContent = `Sessao: ${sessionId}`
   showConnectUI()
   setConnectionVisual('connecting')
