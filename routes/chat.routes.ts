@@ -23,10 +23,11 @@ router.get('/session/:id/messages/:jid', (req, res) => {
     return res.status(404).json({ error: 'Sessao nao encontrada' })
   }
 
-  const messages = ChatStore.getMessages(id, jid)
-  ChatStore.markAsRead(id, jid)
+  const resolvedJid = ChatStore.resolveChatJid(id, jid) || jid
+  const messages = ChatStore.getMessages(id, resolvedJid)
+  ChatStore.markAsRead(id, resolvedJid)
 
-  return res.json({ messages })
+  return res.json({ jid: resolvedJid, messages })
 })
 
 router.post('/session/:id/messages', async (req, res) => {

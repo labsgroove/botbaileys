@@ -3,6 +3,7 @@ const state = {
   chats: [],
   activeJid: null,
   activeMessages: [],
+  activeMessagesSignature: '',
   historyRefreshInterval: null,
   connectionInterval: null
 }
@@ -51,7 +52,9 @@ function displayName(chat) {
     return name
   }
 
-  return chat?.jid?.split('@')[0] || 'Sem nome'
+  const jidUser = chat?.jid?.split('@')[0] || ''
+  const normalizedUser = jidUser.split(':')[0]?.split('_')[0]
+  return normalizedUser || 'Sem nome'
 }
 
 function escapeHtml(value = '') {
@@ -64,6 +67,15 @@ function escapeHtml(value = '') {
   }
 
   return String(value).replace(/[&<>"']/g, (char) => entities[char] || char)
+}
+
+function messagesSignature(messages) {
+  if (!Array.isArray(messages) || !messages.length) {
+    return '0'
+  }
+
+  const lastMessage = messages[messages.length - 1]
+  return `${messages.length}:${lastMessage?.id || ''}:${lastMessage?.timestamp || ''}`
 }
 
 function normalizeConnectionStatus(status) {
@@ -204,7 +216,8 @@ function renderMessages() {
   }
 
   const chat = state.chats.find((item) => item.jid === state.activeJid)
-  elements.chatHeaderTitle.textContent = chat ? displayName(chat) : state.activeJid.split('@')[0]
+  const fallbackTitle = state.activeJid.split('@')[0]?.split(':')[0]?.split('_')[0] || state.activeJid
+  elements.chatHeaderTitle.textContent = chat ? displayName(chat) : fallbackTitle
   elements.chatHeaderSubtitle.textContent = state.activeJid
   elements.jidInput.value = state.activeJid
 
@@ -248,22 +261,40 @@ async function loadChats() {
   const data = await callApi(`/session/${encodeURIComponent(state.sessionId)}/chats`)
   state.chats = Array.isArray(data.chats) ? data.chats : []
 
-  if (state.activeJid && !state.chats.some((chat) => chat.jid === state.activeJid)) {
+  if (state.activeJid && !state.chats.length) {
     state.activeJid = null
     state.activeMessages = []
+    state.activeMessagesSignature = '0'
   }
 
   renderChats()
-  renderMessages()
+
+  if (!state.activeJid) {
+    renderMessages()
+  }
 }
 
 async function selectChat(jid) {
   if (!state.sessionId || !jid) return
   const data = await callApi(`/session/${encodeURIComponent(state.sessionId)}/messages/${encodeURIComponent(jid)}`)
-  state.activeJid = jid
-  state.activeMessages = Array.isArray(data.messages) ? data.messages : []
+  const resolvedJid = data?.jid || jid
+  const nextMessages = Array.isArray(data.messages) ? data.messages : []
+  const nextSignature = messagesSignature(nextMessages)
+  const isSameChat = state.activeJid === resolvedJid
+  const hasChanged = !isSameChat || state.activeMessagesSignature !== nextSignature
+
+  state.activeJid = resolvedJid
+
+  if (hasChanged) {
+    state.activeMessages = nextMessages
+    state.activeMessagesSignature = nextSignature
+  }
+
   renderChats()
-  renderMessages()
+
+  if (hasChanged) {
+    renderMessages()
+  }
 }
 
 async function sendMessage(event) {

@@ -1,4 +1,4 @@
-import { WASocket } from '@whiskeysockets/baileys'
+import { WASocket, jidNormalizedUser } from '@whiskeysockets/baileys'
 import { existsSync, readdirSync } from 'fs'
 import path from 'path'
 import { ChatStore } from '../chat/chat.store.js'
@@ -22,7 +22,6 @@ function setState(sessionId: string, next: Partial<SessionState>) {
   const current = sessionStates.get(sessionId)
   sessionStates.set(sessionId, {
     status: current?.status || 'idle',
-    updatedAt: Date.now(),
     ...current,
     ...next,
     updatedAt: Date.now()
@@ -54,6 +53,9 @@ export class WhatsAppService {
           timestamp: message.timestamp,
           name: message.name
         })
+      },
+      onContactUpdate: (contact) => {
+        ChatStore.upsertContact(sessionId, contact)
       },
       onConnectionUpdate: ({ connection, qr, statusCode, isLoggedOut }) => {
         if (qr) {
@@ -93,8 +95,14 @@ export class WhatsAppService {
       throw new Error('Sessão não encontrada')
     }
 
-    await sock.sendMessage(jid, { text })
-    ChatStore.addOutgoing(sessionId, jid, text)
+    const normalizedJid = jidNormalizedUser(jid)
+
+    if (!normalizedJid) {
+      throw new Error('jid invalido')
+    }
+
+    await sock.sendMessage(normalizedJid, { text })
+    ChatStore.addOutgoing(sessionId, normalizedJid, text)
   }
 
   static async closeSession(sessionId: string) {

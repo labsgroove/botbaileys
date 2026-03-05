@@ -245,6 +245,7 @@ body {
 .sidebar {
   display: flex;
   flex-direction: column;
+  min-height: 0;
   background: linear-gradient(180deg, var(--surface-panel) 0%, #16262d 100%);
   border-right: 1px solid var(--border-soft);
 }
@@ -316,6 +317,7 @@ body {
 
 .chat-list {
   height: 100%;
+  min-height: 0;
   overflow: auto;
   padding: 10px;
 }
@@ -392,6 +394,7 @@ body {
 .chat-panel {
   display: grid;
   grid-template-rows: auto 1fr auto;
+  min-height: 0;
   background:
     radial-gradient(420px 260px at 78% -12%, rgba(60, 209, 173, 0.14), transparent 70%),
     linear-gradient(180deg, #101b20 0%, var(--surface-bg) 100%);
@@ -418,6 +421,7 @@ body {
 
 .message-list {
   overflow-y: auto;
+  min-height: 0;
   padding: 20px 22px;
   display: flex;
   flex-direction: column;
