@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bot WhatsApp</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <header class="sidebar-top">
+        <h1>Conversas</h1>
+        <div class="session-controls">
+          <input id="session-input" type="text" placeholder="session-id" value="default" />
+          <button id="connect-btn" type="button">Conectar</button>
+        </div>
+        <p id="session-label" class="session-label">Sessao: -</p>
+      </header>
+      <div id="chat-list" class="chat-list"></div>
+    </aside>
+
+    <main class="chat-panel">
+      <header id="chat-header" class="chat-header">Selecione uma conversa</header>
+      <section id="message-list" class="message-list"></section>
+      <form id="message-form" class="message-form">
+        <input id="jid-input" type="text" placeholder="5511999999999@s.whatsapp.net" />
+        <input id="message-input" type="text" placeholder="Digite uma mensagem" />
+        <button type="submit">Enviar</button>
+      </form>
+    </main>
+  </div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 import { WASocket } from '@whiskeysockets/baileys'
 import { createSession } from './session.manager.js'
+import { ChatStore } from '../chat/chat.store.js'
 
 const sessions: Map<string, WASocket> = new Map()
 
@@ -10,7 +11,15 @@ export class WhatsAppService {
       return sessions.get(sessionId)
     }
 
-    const sock = await createSession(sessionId)
+    const sock = await createSession(sessionId, {
+      onIncomingMessage: (message) => {
+        if (message.fromMe) {
+          return
+        }
+
+        ChatStore.addIncoming(sessionId, message.jid, message.text, message.timestamp, message.name)
+      }
+    })
 
     sessions.set(sessionId, sock)
 
@@ -29,6 +38,7 @@ export class WhatsAppService {
     }
 
     await sock.sendMessage(jid, { text })
+    ChatStore.addOutgoing(sessionId, jid, text)
   }
 
   static async closeSession(sessionId: string) {
