@@ -31,6 +31,55 @@ body {
   box-shadow: 0 6px 28px rgba(0, 0, 0, 0.35);
 }
 
+.hidden {
+  display: none !important;
+}
+
+.connect-screen {
+  height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.connect-card {
+  width: min(560px, 100%);
+  background: var(--panel);
+  border: 1px solid #182229;
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  padding: 24px;
+}
+
+.connect-card h1 {
+  margin: 0;
+}
+
+.connect-subtitle {
+  color: var(--text-soft);
+  margin: 8px 0 16px;
+}
+
+.connection-status {
+  margin: 12px 0 0;
+  color: var(--text-soft);
+}
+
+.qr-wrapper {
+  margin-top: 16px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.qr-wrapper img {
+  width: 240px;
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
 .sidebar {
   background: var(--panel);
   border-right: 1px solid #182229;

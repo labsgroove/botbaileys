@@ -53,44 +53,72 @@ function nextMessageId(jid: string, timestamp: number) {
   return `${jid}-${timestamp}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+function upsertMessage(
+  sessionId: string,
+  jid: string,
+  text: string,
+  fromMe: boolean,
+  timestamp: number,
+  options: { id?: string; name?: string; countUnread?: boolean } = {}
+) {
+  const session = ensureSession(sessionId)
+  const messages = ensureChat(session, jid)
+  const id = options.id || nextMessageId(jid, timestamp)
+  const alreadyExists = messages.some((message) => message.id === id)
+
+  if (alreadyExists) {
+    return
+  }
+
+  messages.push({
+    id,
+    jid,
+    text,
+    direction: fromMe ? 'outbound' : 'inbound',
+    fromMe,
+    timestamp
+  })
+
+  if (!fromMe && options.countUnread !== false) {
+    session.meta[jid].unread += 1
+  }
+
+  session.meta[jid].lastTimestamp = Math.max(session.meta[jid].lastTimestamp, timestamp)
+  session.meta[jid].lastMessage = text
+
+  if (options.name) {
+    session.meta[jid].name = options.name
+  }
+}
+
 export class ChatStore {
   static addIncoming(sessionId: string, jid: string, text: string, timestamp = Date.now(), name?: string) {
-    const session = ensureSession(sessionId)
-    const messages = ensureChat(session, jid)
-
-    messages.push({
-      id: nextMessageId(jid, timestamp),
-      jid,
-      text,
-      direction: 'inbound',
-      fromMe: false,
-      timestamp
-    })
-
-    session.meta[jid].unread += 1
-    session.meta[jid].lastTimestamp = timestamp
-    session.meta[jid].lastMessage = text
-
-    if (name) {
-      session.meta[jid].name = name
-    }
+    upsertMessage(sessionId, jid, text, false, timestamp, { name, countUnread: true })
   }
 
   static addOutgoing(sessionId: string, jid: string, text: string, timestamp = Date.now()) {
-    const session = ensureSession(sessionId)
-    const messages = ensureChat(session, jid)
+    upsertMessage(sessionId, jid, text, true, timestamp)
+  }
 
-    messages.push({
-      id: nextMessageId(jid, timestamp),
-      jid,
-      text,
-      direction: 'outbound',
-      fromMe: true,
-      timestamp
-    })
-
-    session.meta[jid].lastTimestamp = timestamp
-    session.meta[jid].lastMessage = text
+  static addHistory(
+    sessionId: string,
+    payload: {
+      id?: string
+      jid: string
+      text: string
+      fromMe: boolean
+      timestamp: number
+      name?: string
+    }
+  ) {
+    upsertMessage(
+      sessionId,
+      payload.jid,
+      payload.text,
+      payload.fromMe,
+      payload.timestamp,
+      { id: payload.id, name: payload.name, countUnread: false }
+    )
   }
 
   static listChats(sessionId: string) {
@@ -102,7 +130,7 @@ export class ChatStore {
   static getMessages(sessionId: string, jid: string) {
     const session = ensureSession(sessionId)
     const messages = ensureChat(session, jid)
-    return messages
+    return messages.sort((a, b) => a.timestamp - b.timestamp)
   }
 
   static markAsRead(sessionId: string, jid: string) {

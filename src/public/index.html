@@ -7,14 +7,28 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="app-shell">
+  <section id="connect-screen" class="connect-screen">
+    <div class="connect-card">
+      <h1>Conectar ao WhatsApp</h1>
+      <p class="connect-subtitle">Use o mesmo fluxo do WhatsApp Web: gere e escaneie o QR code.</p>
+
+      <div class="session-controls">
+        <input id="session-input" type="text" placeholder="session-id" value="default" />
+        <button id="connect-btn" type="button">Conectar</button>
+      </div>
+
+      <p id="connection-status" class="connection-status">Aguardando conexão...</p>
+
+      <div id="qr-wrapper" class="qr-wrapper hidden">
+        <img id="qr-image" alt="QR Code para conectar o WhatsApp" />
+      </div>
+    </div>
+  </section>
+
+  <div id="app-shell" class="app-shell hidden">
     <aside class="sidebar">
       <header class="sidebar-top">
         <h1>Conversas</h1>
-        <div class="session-controls">
-          <input id="session-input" type="text" placeholder="session-id" value="default" />
-          <button id="connect-btn" type="button">Conectar</button>
-        </div>
         <p id="session-label" class="session-label">Sessao: -</p>
       </header>
       <div id="chat-list" class="chat-list"></div>

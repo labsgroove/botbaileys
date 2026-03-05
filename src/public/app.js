@@ -2,12 +2,19 @@ const state = {
   sessionId: null,
   chats: [],
   activeJid: null,
-  activeMessages: []
+  activeMessages: [],
+  historyRefreshInterval: null,
+  connectionInterval: null
 }
 
 const elements = {
+  connectScreen: document.getElementById('connect-screen'),
+  appShell: document.getElementById('app-shell'),
   sessionInput: document.getElementById('session-input'),
   connectBtn: document.getElementById('connect-btn'),
+  connectionStatus: document.getElementById('connection-status'),
+  qrWrapper: document.getElementById('qr-wrapper'),
+  qrImage: document.getElementById('qr-image'),
   sessionLabel: document.getElementById('session-label'),
   chatList: document.getElementById('chat-list'),
   chatHeader: document.getElementById('chat-header'),
@@ -25,16 +32,66 @@ function displayName(chat) {
   return chat.name || chat.jid.split('@')[0]
 }
 
+function qrImageUrl(text) {
+  return `https://quickchart.io/qr?size=280&margin=1&text=${encodeURIComponent(text)}`
+}
+
+function showConnectedUI() {
+  elements.connectScreen.classList.add('hidden')
+  elements.appShell.classList.remove('hidden')
+}
+
+function showConnectUI() {
+  elements.connectScreen.classList.remove('hidden')
+  elements.appShell.classList.add('hidden')
+}
+
+function setConnectionStatus(text) {
+  elements.connectionStatus.textContent = text
+}
+
+function renderConnectionState(connectionState) {
+  const status = connectionState?.status || 'idle'
+
+  if (status === 'qr' && connectionState.qr) {
+    setConnectionStatus('Escaneie o QR code no WhatsApp do celular.')
+    elements.qrImage.src = qrImageUrl(connectionState.qr)
+    elements.qrWrapper.classList.remove('hidden')
+    return
+  }
+
+  elements.qrWrapper.classList.add('hidden')
+  elements.qrImage.removeAttribute('src')
+
+  if (status === 'connecting') {
+    setConnectionStatus('Conectando ao WhatsApp...')
+    return
+  }
+
+  if (status === 'connected') {
+    setConnectionStatus('Conectado com sucesso.')
+    return
+  }
+
+  if (status === 'closed') {
+    setConnectionStatus('Sessao encerrada. Gere um novo QR code para reconectar.')
+    return
+  }
+
+  setConnectionStatus('Aguardando conexão...')
+}
+
 function renderChats() {
   if (!state.chats.length) {
     elements.chatList.innerHTML = '<p style="padding:16px;color:#9ba3a7">Sem conversas ainda.</p>'
     return
   }
 
-  elements.chatList.innerHTML = state.chats.map((chat) => {
-    const activeClass = chat.jid === state.activeJid ? 'active' : ''
-    const unread = chat.unread > 0 ? `<span class="badge">${chat.unread}</span>` : ''
-    return `
+  elements.chatList.innerHTML = state.chats
+    .map((chat) => {
+      const activeClass = chat.jid === state.activeJid ? 'active' : ''
+      const unread = chat.unread > 0 ? `<span class="badge">${chat.unread}</span>` : ''
+      return `
       <button class="chat-item ${activeClass}" data-jid="${chat.jid}">
         <div class="chat-title">${displayName(chat)}</div>
         <div class="chat-subline">
@@ -43,7 +100,8 @@ function renderChats() {
         </div>
       </button>
     `
-  }).join('')
+    })
+    .join('')
 
   elements.chatList.querySelectorAll('.chat-item').forEach((node) => {
     node.addEventListener('click', () => {
@@ -63,12 +121,16 @@ function renderMessages() {
   elements.chatHeader.textContent = chat ? displayName(chat) : state.activeJid
   elements.jidInput.value = state.activeJid
 
-  elements.messageList.innerHTML = state.activeMessages.map((message) => `
+  elements.messageList.innerHTML = state.activeMessages
+    .map(
+      (message) => `
     <article class="message ${message.direction}">
       <div>${message.text}</div>
       <div class="message-time">${formatTime(message.timestamp)}</div>
     </article>
-  `).join('')
+  `
+    )
+    .join('')
 
   elements.messageList.scrollTop = elements.messageList.scrollHeight
 }
@@ -85,12 +147,6 @@ async function callApi(url, options = {}) {
   }
 
   return response.json()
-}
-
-async function ensureSession(sessionId) {
-  await callApi(`/session/${encodeURIComponent(sessionId)}`, { method: 'POST' })
-  state.sessionId = sessionId
-  elements.sessionLabel.textContent = `Sessao: ${sessionId}`
 }
 
 async function loadChats() {
@@ -134,17 +190,87 @@ async function sendMessage(event) {
   await selectChat(jid)
 }
 
+async function getConnectionState(sessionId) {
+  const data = await callApi(`/session/${encodeURIComponent(sessionId)}/status`)
+  return data.state
+}
+
+function startHistoryRefresh() {
+  if (state.historyRefreshInterval) {
+    clearInterval(state.historyRefreshInterval)
+  }
+
+  state.historyRefreshInterval = setInterval(async () => {
+    try {
+      await loadChats()
+      if (state.activeJid) {
+        await selectChat(state.activeJid)
+      }
+    } catch (error) {
+      console.error(error)
+    }
+  }, 3000)
+}
+
+function stopConnectionPolling() {
+  if (state.connectionInterval) {
+    clearInterval(state.connectionInterval)
+    state.connectionInterval = null
+  }
+}
+
+function startConnectionPolling(sessionId) {
+  stopConnectionPolling()
+
+  state.connectionInterval = setInterval(async () => {
+    try {
+      const connectionState = await getConnectionState(sessionId)
+      renderConnectionState(connectionState)
+
+      if (connectionState.status === 'connected') {
+        stopConnectionPolling()
+        showConnectedUI()
+        await loadChats()
+        if (state.activeJid) {
+          await selectChat(state.activeJid)
+        }
+        startHistoryRefresh()
+      }
+    } catch (error) {
+      console.error(error)
+    }
+  }, 2000)
+}
+
+async function startSessionConnection(sessionId) {
+  if (!sessionId) return
+
+  state.sessionId = sessionId
+  elements.sessionLabel.textContent = `Sessao: ${sessionId}`
+  showConnectUI()
+  setConnectionStatus('Iniciando sessao...')
+
+  await callApi(`/session/${encodeURIComponent(sessionId)}`, { method: 'POST' })
+  const connectionState = await getConnectionState(sessionId)
+  renderConnectionState(connectionState)
+
+  if (connectionState.status === 'connected') {
+    showConnectedUI()
+    await loadChats()
+    startHistoryRefresh()
+    return
+  }
+
+  startConnectionPolling(sessionId)
+}
+
 async function boot() {
   elements.connectBtn.addEventListener('click', async () => {
     const sessionId = elements.sessionInput.value.trim()
     if (!sessionId) return
 
     try {
-      await ensureSession(sessionId)
-      await loadChats()
-      if (state.activeJid) {
-        await selectChat(state.activeJid)
-      }
+      await startSessionConnection(sessionId)
     } catch (error) {
       alert(error.message)
     }
@@ -160,23 +286,13 @@ async function boot() {
 
   try {
     const sessions = await callApi('/sessions')
-    const first = sessions.active?.[0] || elements.sessionInput.value.trim() || 'default'
-    await ensureSession(first)
-    await loadChats()
+    const preferredSessionId =
+      sessions.active?.[0] || sessions.stored?.[0] || elements.sessionInput.value.trim() || 'default'
+    elements.sessionInput.value = preferredSessionId
+    await startSessionConnection(preferredSessionId)
   } catch (error) {
     console.error(error)
   }
-
-  setInterval(async () => {
-    try {
-      await loadChats()
-      if (state.activeJid) {
-        await selectChat(state.activeJid)
-      }
-    } catch (error) {
-      console.error(error)
-    }
-  }, 3000)
 }
 
 boot()

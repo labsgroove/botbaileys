@@ -17,6 +17,13 @@ type IncomingMessage = {
 
 type CreateSessionOptions = {
   onIncomingMessage?: (message: IncomingMessage) => void
+  onHistoryMessage?: (message: IncomingMessage & { id?: string }) => void
+  onConnectionUpdate?: (state: {
+    connection?: string
+    qr?: string
+    statusCode?: number
+    isLoggedOut: boolean
+  }) => void
 }
 
 function extractText(message: any): string | null {
@@ -37,7 +44,8 @@ export async function createSession(sessionId: string, options: CreateSessionOpt
     version,
     auth: state,
     logger: pino({ level: 'silent' }),
-    browser: ['Bot', 'Chrome', '120.0.0']
+    browser: ['Bot', 'Chrome', '120.0.0'],
+    syncFullHistory: true
   })
 
   sock.ev.on('creds.update', saveCreds)
@@ -63,8 +71,39 @@ export async function createSession(sessionId: string, options: CreateSessionOpt
     }
   })
 
+  sock.ev.on('messaging-history.set', ({ messages }) => {
+    for (const historyMessage of messages || []) {
+      const jid = historyMessage.key?.remoteJid
+      const text = extractText(historyMessage.message)
+
+      if (!jid || !text || jid === 'status@broadcast') {
+        continue
+      }
+
+      const unixTimestamp = Number(historyMessage.messageTimestamp || Math.floor(Date.now() / 1000))
+
+      options.onHistoryMessage?.({
+        id: historyMessage.key?.id,
+        jid,
+        text,
+        fromMe: !!historyMessage.key?.fromMe,
+        timestamp: unixTimestamp * 1000,
+        name: historyMessage.pushName
+      })
+    }
+  })
+
   sock.ev.on('connection.update', (update) => {
     const { connection, lastDisconnect, qr } = update
+    const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode
+    const isLoggedOut = statusCode === DisconnectReason.loggedOut
+
+    options.onConnectionUpdate?.({
+      connection,
+      qr,
+      statusCode,
+      isLoggedOut
+    })
 
     if (qr) {
       console.log(`Escaneie o QR da sessão ${sessionId}`)
@@ -72,14 +111,9 @@ export async function createSession(sessionId: string, options: CreateSessionOpt
     }
 
     if (connection === 'close') {
-      const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode
-
       console.log('Conexão fechada. Status:', statusCode)
 
-      if (statusCode !== DisconnectReason.loggedOut) {
-        console.log('Reconectando...')
-        createSession(sessionId, options)
-      } else {
+      if (statusCode === DisconnectReason.loggedOut) {
         console.log('Sessão deslogada. Apague auth e conecte novamente.')
       }
     }

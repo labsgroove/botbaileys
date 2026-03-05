@@ -1,15 +1,41 @@
 import { WASocket } from '@whiskeysockets/baileys'
-import { createSession } from './session.manager.js'
+import { existsSync, readdirSync } from 'fs'
+import path from 'path'
 import { ChatStore } from '../chat/chat.store.js'
+import { createSession } from './session.manager.js'
 
 const sessions: Map<string, WASocket> = new Map()
+const reconnecting: Set<string> = new Set()
+
+type SessionConnectionStatus = 'idle' | 'connecting' | 'qr' | 'connected' | 'closed'
+
+type SessionState = {
+  status: SessionConnectionStatus
+  qr?: string
+  lastStatusCode?: number
+  updatedAt: number
+}
+
+const sessionStates: Map<string, SessionState> = new Map()
+
+function setState(sessionId: string, next: Partial<SessionState>) {
+  const current = sessionStates.get(sessionId)
+  sessionStates.set(sessionId, {
+    status: current?.status || 'idle',
+    updatedAt: Date.now(),
+    ...current,
+    ...next,
+    updatedAt: Date.now()
+  })
+}
 
 export class WhatsAppService {
-
-  static async initSession(sessionId: string) {
-    if (sessions.has(sessionId)) {
+  static async initSession(sessionId: string, force = false) {
+    if (!force && sessions.has(sessionId)) {
       return sessions.get(sessionId)
     }
+
+    setState(sessionId, { status: 'connecting', qr: undefined, lastStatusCode: undefined })
 
     const sock = await createSession(sessionId, {
       onIncomingMessage: (message) => {
@@ -18,11 +44,41 @@ export class WhatsAppService {
         }
 
         ChatStore.addIncoming(sessionId, message.jid, message.text, message.timestamp, message.name)
+      },
+      onHistoryMessage: (message) => {
+        ChatStore.addHistory(sessionId, {
+          id: message.id,
+          jid: message.jid,
+          text: message.text,
+          fromMe: message.fromMe,
+          timestamp: message.timestamp,
+          name: message.name
+        })
+      },
+      onConnectionUpdate: ({ connection, qr, statusCode, isLoggedOut }) => {
+        if (qr) {
+          setState(sessionId, { status: 'qr', qr })
+        }
+
+        if (connection === 'open') {
+          setState(sessionId, { status: 'connected', qr: undefined })
+        }
+
+        if (connection === 'close') {
+          sessions.delete(sessionId)
+
+          if (isLoggedOut) {
+            setState(sessionId, { status: 'closed', qr: undefined, lastStatusCode: statusCode })
+            return
+          }
+
+          setState(sessionId, { status: 'connecting', qr: undefined, lastStatusCode: statusCode })
+          this.reconnectSession(sessionId)
+        }
       }
     })
 
     sessions.set(sessionId, sock)
-
     return sock
   }
 
@@ -48,9 +104,54 @@ export class WhatsAppService {
       await sock.logout()
       sessions.delete(sessionId)
     }
+
+    setState(sessionId, { status: 'closed', qr: undefined })
   }
 
   static listSessions() {
     return Array.from(sessions.keys())
+  }
+
+  static listStoredSessions() {
+    const authDir = path.resolve('auth')
+
+    if (!existsSync(authDir)) {
+      return []
+    }
+
+    return readdirSync(authDir, { withFileTypes: true })
+      .filter((item) => item.isDirectory())
+      .map((item) => item.name)
+  }
+
+  static getSessionState(sessionId: string): SessionState {
+    const existing = sessionStates.get(sessionId)
+
+    if (existing) {
+      return existing
+    }
+
+    const initialState: SessionState = {
+      status: sessions.has(sessionId) ? 'connected' : 'idle',
+      updatedAt: Date.now()
+    }
+
+    sessionStates.set(sessionId, initialState)
+    return initialState
+  }
+
+  private static async reconnectSession(sessionId: string) {
+    if (reconnecting.has(sessionId)) {
+      return
+    }
+
+    reconnecting.add(sessionId)
+    try {
+      await this.initSession(sessionId, true)
+    } catch {
+      setState(sessionId, { status: 'connecting' })
+    } finally {
+      reconnecting.delete(sessionId)
+    }
   }
 }
