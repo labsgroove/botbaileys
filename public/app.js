@@ -12,24 +12,84 @@ const elements = {
   appShell: document.getElementById('app-shell'),
   sessionInput: document.getElementById('session-input'),
   connectBtn: document.getElementById('connect-btn'),
+  connectionDot: document.getElementById('connection-dot'),
   connectionStatus: document.getElementById('connection-status'),
   qrWrapper: document.getElementById('qr-wrapper'),
   qrImage: document.getElementById('qr-image'),
   sessionLabel: document.getElementById('session-label'),
+  connectionPill: document.getElementById('connection-pill'),
+  chatSearchInput: document.getElementById('chat-search-input'),
   chatList: document.getElementById('chat-list'),
-  chatHeader: document.getElementById('chat-header'),
+  chatHeaderTitle: document.getElementById('chat-header-title'),
+  chatHeaderSubtitle: document.getElementById('chat-header-subtitle'),
   messageList: document.getElementById('message-list'),
   messageForm: document.getElementById('message-form'),
   jidInput: document.getElementById('jid-input'),
   messageInput: document.getElementById('message-input')
 }
 
+const connectionLabels = {
+  idle: 'Aguardando',
+  qr: 'QR pronto',
+  connecting: 'Conectando',
+  connected: 'Conectado',
+  closed: 'Encerrada'
+}
+
 function formatTime(ts) {
-  return new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const date = new Date(ts)
+  if (Number.isNaN(date.getTime())) {
+    return '--:--'
+  }
+
+  return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
 function displayName(chat) {
-  return chat.name || chat.jid.split('@')[0]
+  const name = chat?.name?.trim()
+  if (name) {
+    return name
+  }
+
+  return chat?.jid?.split('@')[0] || 'Sem nome'
+}
+
+function escapeHtml(value = '') {
+  const entities = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }
+
+  return String(value).replace(/[&<>"']/g, (char) => entities[char] || char)
+}
+
+function normalizeConnectionStatus(status) {
+  if (
+    status === 'qr' ||
+    status === 'connecting' ||
+    status === 'connected' ||
+    status === 'closed'
+  ) {
+    return status
+  }
+
+  return 'idle'
+}
+
+function setConnectionVisual(status) {
+  const normalizedStatus = normalizeConnectionStatus(status)
+
+  if (elements.connectionDot) {
+    elements.connectionDot.className = `connection-dot connection-dot-${normalizedStatus}`
+  }
+
+  if (elements.connectionPill) {
+    elements.connectionPill.className = `connection-pill connection-pill-${normalizedStatus}`
+    elements.connectionPill.textContent = connectionLabels[normalizedStatus]
+  }
 }
 
 function qrImageUrl(text) {
@@ -51,7 +111,8 @@ function setConnectionStatus(text) {
 }
 
 function renderConnectionState(connectionState) {
-  const status = connectionState?.status || 'idle'
+  const status = normalizeConnectionStatus(connectionState?.status)
+  setConnectionVisual(status)
 
   if (status === 'qr' && connectionState.qr) {
     setConnectionStatus('Escaneie o QR code no WhatsApp do celular.')
@@ -81,21 +142,44 @@ function renderConnectionState(connectionState) {
   setConnectionStatus('Aguardando conexão...')
 }
 
+function getVisibleChats() {
+  const query = (elements.chatSearchInput?.value || '').trim().toLowerCase()
+
+  if (!query) {
+    return state.chats
+  }
+
+  return state.chats.filter((chat) => {
+    const chatName = displayName(chat).toLowerCase()
+    const chatJid = (chat.jid || '').toLowerCase()
+    return chatName.includes(query) || chatJid.includes(query)
+  })
+}
+
 function renderChats() {
+  const visibleChats = getVisibleChats()
+
   if (!state.chats.length) {
-    elements.chatList.innerHTML = '<p style="padding:16px;color:#9ba3a7">Sem conversas ainda.</p>'
+    elements.chatList.innerHTML = '<p class="empty-state">Sem conversas ainda.</p>'
     return
   }
 
-  elements.chatList.innerHTML = state.chats
+  if (!visibleChats.length) {
+    elements.chatList.innerHTML = '<p class="empty-state">Nenhuma conversa encontrada para esse filtro.</p>'
+    return
+  }
+
+  elements.chatList.innerHTML = visibleChats
     .map((chat) => {
       const activeClass = chat.jid === state.activeJid ? 'active' : ''
       const unread = chat.unread > 0 ? `<span class="badge">${chat.unread}</span>` : ''
+      const chatTitle = escapeHtml(displayName(chat))
+      const chatPreview = escapeHtml(chat.lastMessage || 'Sem mensagens recentes')
       return `
-      <button class="chat-item ${activeClass}" data-jid="${chat.jid}">
-        <div class="chat-title">${displayName(chat)}</div>
+      <button class="chat-item ${activeClass}" data-jid="${encodeURIComponent(chat.jid)}">
+        <div class="chat-title">${chatTitle}</div>
         <div class="chat-subline">
-          <span>${chat.lastMessage || ''}</span>
+          <span class="chat-preview">${chatPreview}</span>
           ${unread}
         </div>
       </button>
@@ -105,31 +189,41 @@ function renderChats() {
 
   elements.chatList.querySelectorAll('.chat-item').forEach((node) => {
     node.addEventListener('click', () => {
-      selectChat(node.dataset.jid)
+      const jid = node.dataset.jid ? decodeURIComponent(node.dataset.jid) : ''
+      selectChat(jid)
     })
   })
 }
 
 function renderMessages() {
   if (!state.activeJid) {
-    elements.chatHeader.textContent = 'Selecione uma conversa'
-    elements.messageList.innerHTML = ''
+    elements.chatHeaderTitle.textContent = 'Selecione uma conversa'
+    elements.chatHeaderSubtitle.textContent = 'Escolha um contato para abrir o histórico.'
+    elements.messageList.innerHTML = '<div class="message-empty">As mensagens aparecerão aqui.</div>'
     return
   }
 
   const chat = state.chats.find((item) => item.jid === state.activeJid)
-  elements.chatHeader.textContent = chat ? displayName(chat) : state.activeJid
+  elements.chatHeaderTitle.textContent = chat ? displayName(chat) : state.activeJid.split('@')[0]
+  elements.chatHeaderSubtitle.textContent = state.activeJid
   elements.jidInput.value = state.activeJid
 
+  if (!state.activeMessages.length) {
+    elements.messageList.innerHTML = '<div class="message-empty">Nenhuma mensagem neste chat ainda.</div>'
+    return
+  }
+
   elements.messageList.innerHTML = state.activeMessages
-    .map(
-      (message) => `
-    <article class="message ${message.direction}">
-      <div>${message.text}</div>
+    .map((message) => {
+      const direction = message.direction === 'outbound' ? 'outbound' : 'inbound'
+      const safeText = escapeHtml(message.text || '(mensagem vazia)').replace(/\n/g, '<br />')
+      return `
+    <article class="message ${direction}">
+      <div>${safeText}</div>
       <div class="message-time">${formatTime(message.timestamp)}</div>
     </article>
   `
-    )
+    })
     .join('')
 
   elements.messageList.scrollTop = elements.messageList.scrollHeight
@@ -152,15 +246,22 @@ async function callApi(url, options = {}) {
 async function loadChats() {
   if (!state.sessionId) return
   const data = await callApi(`/session/${encodeURIComponent(state.sessionId)}/chats`)
-  state.chats = data.chats
+  state.chats = Array.isArray(data.chats) ? data.chats : []
+
+  if (state.activeJid && !state.chats.some((chat) => chat.jid === state.activeJid)) {
+    state.activeJid = null
+    state.activeMessages = []
+  }
+
   renderChats()
+  renderMessages()
 }
 
 async function selectChat(jid) {
   if (!state.sessionId || !jid) return
   const data = await callApi(`/session/${encodeURIComponent(state.sessionId)}/messages/${encodeURIComponent(jid)}`)
   state.activeJid = jid
-  state.activeMessages = data.messages
+  state.activeMessages = Array.isArray(data.messages) ? data.messages : []
   renderChats()
   renderMessages()
 }
@@ -212,6 +313,13 @@ function startHistoryRefresh() {
   }, 3000)
 }
 
+function stopHistoryRefresh() {
+  if (state.historyRefreshInterval) {
+    clearInterval(state.historyRefreshInterval)
+    state.historyRefreshInterval = null
+  }
+}
+
 function stopConnectionPolling() {
   if (state.connectionInterval) {
     clearInterval(state.connectionInterval)
@@ -245,9 +353,12 @@ function startConnectionPolling(sessionId) {
 async function startSessionConnection(sessionId) {
   if (!sessionId) return
 
+  stopConnectionPolling()
+  stopHistoryRefresh()
   state.sessionId = sessionId
   elements.sessionLabel.textContent = `Sessao: ${sessionId}`
   showConnectUI()
+  setConnectionVisual('connecting')
   setConnectionStatus('Iniciando sessao...')
 
   await callApi(`/session/${encodeURIComponent(sessionId)}`, { method: 'POST' })
@@ -265,6 +376,9 @@ async function startSessionConnection(sessionId) {
 }
 
 async function boot() {
+  renderMessages()
+  setConnectionVisual('idle')
+
   elements.connectBtn.addEventListener('click', async () => {
     const sessionId = elements.sessionInput.value.trim()
     if (!sessionId) return
@@ -282,6 +396,10 @@ async function boot() {
     } catch (error) {
       alert(error.message)
     }
+  })
+
+  elements.chatSearchInput.addEventListener('input', () => {
+    renderChats()
   })
 
   try {

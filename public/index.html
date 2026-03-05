@@ -7,17 +7,27 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
+  <div class="scene-glow scene-glow-one" aria-hidden="true"></div>
+  <div class="scene-glow scene-glow-two" aria-hidden="true"></div>
+
   <section id="connect-screen" class="connect-screen">
     <div class="connect-card">
+      <p class="eyebrow">WhatsApp Bot Console</p>
       <h1>Conectar ao WhatsApp</h1>
       <p class="connect-subtitle">Use o mesmo fluxo do WhatsApp Web: gere e escaneie o QR code.</p>
 
       <div class="session-controls">
-        <input id="session-input" type="text" placeholder="session-id" value="default" />
-        <button id="connect-btn" type="button">Conectar</button>
+        <label class="field">
+          <span>Identificador da sessao</span>
+          <input id="session-input" type="text" placeholder="session-id" value="default" />
+        </label>
+        <button id="connect-btn" type="button">Iniciar conexao</button>
       </div>
 
-      <p id="connection-status" class="connection-status">Aguardando conexão...</p>
+      <div class="connection-row">
+        <span id="connection-dot" class="connection-dot" aria-hidden="true"></span>
+        <p id="connection-status" class="connection-status">Aguardando conexão...</p>
+      </div>
 
       <div id="qr-wrapper" class="qr-wrapper hidden">
         <img id="qr-image" alt="QR Code para conectar o WhatsApp" />
@@ -28,14 +38,26 @@
   <div id="app-shell" class="app-shell hidden">
     <aside class="sidebar">
       <header class="sidebar-top">
-        <h1>Conversas</h1>
-        <p id="session-label" class="session-label">Sessao: -</p>
+        <div>
+          <p class="eyebrow sidebar-eyebrow">Painel</p>
+          <h1>Conversas</h1>
+          <p id="session-label" class="session-label">Sessao: -</p>
+        </div>
+        <span id="connection-pill" class="connection-pill connection-pill-idle">Aguardando</span>
       </header>
+
+      <div class="chat-search-wrap">
+        <input id="chat-search-input" type="text" placeholder="Buscar por nome ou JID" />
+      </div>
+
       <div id="chat-list" class="chat-list"></div>
     </aside>
 
     <main class="chat-panel">
-      <header id="chat-header" class="chat-header">Selecione uma conversa</header>
+      <header id="chat-header" class="chat-header">
+        <h2 id="chat-header-title">Selecione uma conversa</h2>
+        <p id="chat-header-subtitle">Escolha um contato para abrir o histórico.</p>
+      </header>
       <section id="message-list" class="message-list"></section>
       <form id="message-form" class="message-form">
         <input id="jid-input" type="text" placeholder="5511999999999@s.whatsapp.net" />
