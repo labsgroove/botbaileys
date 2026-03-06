@@ -26,7 +26,7 @@
 
       <div class="connection-row">
         <span id="connection-dot" class="connection-dot" aria-hidden="true"></span>
-        <p id="connection-status" class="connection-status">Aguardando conexão...</p>
+        <p id="connection-status" class="connection-status">Aguardando conexao...</p>
       </div>
 
       <div id="qr-wrapper" class="qr-wrapper hidden">
@@ -51,21 +51,51 @@
       </div>
 
       <div id="chat-list" class="chat-list"></div>
+
+      <section class="event-panel">
+        <div class="event-header">Eventos Baileys</div>
+        <div id="event-list" class="event-list">
+          <p class="empty-state">Sem eventos ainda.</p>
+        </div>
+      </section>
     </aside>
 
     <main class="chat-panel">
       <header id="chat-header" class="chat-header">
         <h2 id="chat-header-title">Selecione uma conversa</h2>
-        <p id="chat-header-subtitle">Escolha um contato para abrir o histórico.</p>
+        <p id="chat-header-subtitle">Escolha um contato para abrir o historico.</p>
       </header>
+
       <section id="message-list" class="message-list"></section>
+
       <form id="message-form" class="message-form">
         <input id="jid-input" type="text" placeholder="5511999999999@s.whatsapp.net" />
+
+        <select id="message-type">
+          <option value="text">Texto</option>
+          <option value="media">Midia</option>
+          <option value="sticker">Sticker</option>
+          <option value="reaction">Reaction</option>
+          <option value="interactive">Interativa</option>
+        </select>
+
         <input id="message-input" type="text" placeholder="Digite uma mensagem" />
-        <button type="submit">Enviar</button>
+
+        <input id="media-url-input" class="hidden" type="text" placeholder="URL da midia (opcional se usar arquivo)" />
+        <input id="media-file-input" class="hidden" type="file" />
+        <input id="mime-input" class="hidden" type="text" placeholder="mimetype opcional (ex: image/png)" />
+        <input id="file-name-input" class="hidden" type="text" placeholder="Nome do arquivo (documentos)" />
+
+        <input id="reaction-message-id" class="hidden" type="text" placeholder="ID da mensagem alvo" />
+        <input id="reaction-emoji" class="hidden" type="text" placeholder="Emoji (ex: 👍)" value="👍" />
+
+        <textarea id="interactive-json" class="hidden" rows="3" placeholder='{"mode":"buttons","buttons":[{"id":"opt_1","text":"Opcao 1"}]}'></textarea>
+
+        <button id="send-btn" type="submit">Enviar</button>
       </form>
     </main>
   </div>
+
   <script type="module" src="/app.js"></script>
 </body>
 </html>

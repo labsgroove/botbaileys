@@ -1,21 +1,72 @@
 import makeWASocket, {
-  useMultiFileAuthState,
-  fetchLatestBaileysVersion,
+  Browsers,
   DisconnectReason,
+  fetchLatestBaileysVersion,
   jidNormalizedUser,
-  Browsers
+  useMultiFileAuthState
 } from '@whiskeysockets/baileys'
 import pino from 'pino'
 import qrcode from 'qrcode-terminal'
 import { Boom } from '@hapi/boom'
 
-type IncomingMessage = {
+type MessageKind =
+  | 'text'
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'sticker'
+  | 'document'
+  | 'contact'
+  | 'location'
+  | 'poll'
+  | 'reaction'
+  | 'interactive'
+  | 'system'
+  | 'unknown'
+
+type SessionMessage = {
   id?: string
   jid: string
-  text: string
+  text?: string
   fromMe: boolean
   timestamp: number
   name?: string
+  participant?: string
+  type?: MessageKind
+  status?: number
+  rawType?: string
+  media?: {
+    kind: 'image' | 'video' | 'audio' | 'sticker' | 'document'
+    mimetype?: string
+    fileName?: string
+    caption?: string
+    seconds?: number
+    fileLength?: number
+    hasMedia?: boolean
+    mediaKeyTs?: number
+  }
+  reaction?: {
+    targetId?: string
+    emoji?: string
+  }
+  interactive?: {
+    kind: 'buttons' | 'list' | 'template' | 'native' | 'response' | 'unknown'
+    title?: string
+    body?: string
+    footer?: string
+    selectedId?: string
+    selectedText?: string
+    options?: Array<{ id: string; title: string; description?: string }>
+  }
+  quoted?: {
+    id?: string
+    participant?: string
+    text?: string
+  }
+  isEdited?: boolean
+  isDeleted?: boolean
+  targetMessageId?: string
+  raw?: any
 }
 
 type ContactUpdate = {
@@ -28,8 +79,8 @@ type ContactUpdate = {
 }
 
 type CreateSessionOptions = {
-  onIncomingMessage?: (message: IncomingMessage) => void
-  onHistoryMessage?: (message: IncomingMessage) => void
+  onIncomingMessage?: (message: SessionMessage) => void
+  onHistoryMessage?: (message: SessionMessage) => void
   onHistoryChat?: (chat: {
     jid: string
     name?: string
@@ -44,6 +95,40 @@ type CreateSessionOptions = {
     statusCode?: number
     isLoggedOut: boolean
   }) => void
+  onMessageUpdate?: (update: {
+    id: string
+    jid: string
+    text?: string
+    timestamp?: number
+    status?: number
+    type?: MessageKind
+    rawType?: string
+    media?: SessionMessage['media']
+    interactive?: SessionMessage['interactive']
+    quoted?: SessionMessage['quoted']
+    isEdited?: boolean
+    isDeleted?: boolean
+    participant?: string
+    name?: string
+  }) => void
+  onMessageDelete?: (payload: { jid: string; messageId: string; timestamp?: number }) => void
+  onReaction?: (payload: {
+    jid: string
+    messageId: string
+    emoji?: string
+    actor?: string
+    fromMe?: boolean
+    timestamp?: number
+  }) => void
+  onMessageReceipt?: (payload: {
+    jid: string
+    messageId: string
+    participant?: string
+    status: 'server_ack' | 'delivery_ack' | 'read' | 'played'
+    timestamp?: number
+  }) => void
+  onPresenceUpdate?: (payload: { jid: string; participant: string; lastKnownPresence?: string }) => void
+  onEvent?: (payload: { name: string; summary: string }) => void
 }
 
 function normalizeTimestamp(value: any): number | undefined {
@@ -60,7 +145,6 @@ function normalizeTimestamp(value: any): number | undefined {
     return undefined
   }
 
-  // WhatsApp usually sends seconds; some updates may already arrive in milliseconds.
   return numericValue > 1_000_000_000_000 ? numericValue : numericValue * 1000
 }
 
@@ -94,35 +178,6 @@ function unwrapMessageContent(message: any) {
   return content
 }
 
-function extractText(message: any): string | null {
-  const content = unwrapMessageContent(message)
-
-  const text =
-    content?.conversation ||
-    content?.extendedTextMessage?.text ||
-    content?.imageMessage?.caption ||
-    content?.videoMessage?.caption ||
-    content?.documentMessage?.caption
-
-  if (text) {
-    return text
-  }
-
-  if (content?.imageMessage) return '[Imagem]'
-  if (content?.videoMessage) return '[Video]'
-  if (content?.audioMessage) return '[Audio]'
-  if (content?.stickerMessage) return '[Sticker]'
-  if (content?.documentMessage) return '[Documento]'
-  if (content?.contactsArrayMessage || content?.contactMessage) return '[Contato]'
-  if (content?.locationMessage || content?.liveLocationMessage) return '[Localizacao]'
-  if (content?.pollCreationMessage || content?.pollCreationMessageV2 || content?.pollCreationMessageV3) return '[Enquete]'
-  if (content?.reactionMessage) return '[Reacao]'
-
-  return (
-    null
-  )
-}
-
 function normalizeJid(jid?: string | null): string | undefined {
   if (!jid) {
     return undefined
@@ -144,6 +199,352 @@ function pickContactName(contact: { name?: string | null; notify?: string | null
   }
 
   return contact.verifiedName?.trim() || undefined
+}
+
+function pickQuoted(content: any) {
+  const context =
+    content?.extendedTextMessage?.contextInfo ||
+    content?.imageMessage?.contextInfo ||
+    content?.videoMessage?.contextInfo ||
+    content?.documentMessage?.contextInfo ||
+    content?.buttonsResponseMessage?.contextInfo ||
+    content?.interactiveResponseMessage?.contextInfo
+
+  if (!context) {
+    return undefined
+  }
+
+  const quotedText =
+    context?.quotedMessage?.conversation ||
+    context?.quotedMessage?.extendedTextMessage?.text ||
+    context?.quotedMessage?.imageMessage?.caption ||
+    context?.quotedMessage?.videoMessage?.caption ||
+    context?.quotedMessage?.documentMessage?.caption
+
+  return {
+    id: context?.stanzaId || undefined,
+    participant: normalizeJid(context?.participant) || undefined,
+    text: quotedText || undefined
+  }
+}
+
+function parseInteractive(content: any): SessionMessage['interactive'] {
+  if (content?.buttonsMessage) {
+    const buttons = (content.buttonsMessage.buttons || []).map((button: any) => ({
+      id: button?.buttonId || '',
+      title: button?.buttonText?.displayText || button?.buttonId || 'Opcao'
+    }))
+
+    return {
+      kind: 'buttons',
+      title: content.buttonsMessage?.headerText || undefined,
+      body: content.buttonsMessage?.contentText || '',
+      footer: content.buttonsMessage?.footerText || undefined,
+      options: buttons
+    }
+  }
+
+  if (content?.listMessage) {
+    const options: Array<{ id: string; title: string; description?: string }> = []
+    for (const section of content.listMessage.sections || []) {
+      for (const row of section?.rows || []) {
+        options.push({
+          id: row?.rowId || '',
+          title: row?.title || row?.rowId || 'Item',
+          description: row?.description || undefined
+        })
+      }
+    }
+
+    return {
+      kind: 'list',
+      title: content.listMessage?.title || undefined,
+      body: content.listMessage?.description || '',
+      footer: content.listMessage?.footerText || undefined,
+      options
+    }
+  }
+
+  if (content?.templateMessage) {
+    return {
+      kind: 'template',
+      body: '[Mensagem template]'
+    }
+  }
+
+  if (content?.interactiveMessage) {
+    return {
+      kind: 'native',
+      title: content.interactiveMessage?.header?.title || undefined,
+      body: content.interactiveMessage?.body?.text || '',
+      footer: content.interactiveMessage?.footer?.text || undefined
+    }
+  }
+
+  if (content?.buttonsResponseMessage) {
+    return {
+      kind: 'response',
+      selectedId: content.buttonsResponseMessage?.selectedButtonId || undefined,
+      selectedText: content.buttonsResponseMessage?.selectedDisplayText || undefined,
+      body: content.buttonsResponseMessage?.selectedDisplayText || '[Resposta de botao]'
+    }
+  }
+
+  if (content?.listResponseMessage) {
+    return {
+      kind: 'response',
+      selectedId: content.listResponseMessage?.singleSelectReply?.selectedRowId || undefined,
+      selectedText: content.listResponseMessage?.title || undefined,
+      body: content.listResponseMessage?.title || '[Resposta de lista]'
+    }
+  }
+
+  if (content?.templateButtonReplyMessage) {
+    return {
+      kind: 'response',
+      selectedId: content.templateButtonReplyMessage?.selectedId || undefined,
+      selectedText: content.templateButtonReplyMessage?.selectedDisplayText || undefined,
+      body: content.templateButtonReplyMessage?.selectedDisplayText || '[Resposta de template]'
+    }
+  }
+
+  if (content?.interactiveResponseMessage) {
+    const nativeResponse = content.interactiveResponseMessage?.nativeFlowResponseMessage
+    return {
+      kind: 'response',
+      selectedId: nativeResponse?.name || undefined,
+      selectedText: nativeResponse?.paramsJson || undefined,
+      body: '[Resposta interativa]'
+    }
+  }
+
+  return undefined
+}
+
+function parseMessagePayload(message: any): SessionMessage | null {
+  const jid = normalizeJid(message?.key?.remoteJid)
+  if (!jid || jid === 'status@broadcast') {
+    return null
+  }
+
+  const timestamp = normalizeTimestamp(message?.messageTimestamp) || Date.now()
+  const content = unwrapMessageContent(message?.message)
+  const participant = normalizeJid(message?.key?.participant)
+  const quoted = pickQuoted(content)
+
+  const base: SessionMessage = {
+    id: message?.key?.id,
+    jid,
+    fromMe: !!message?.key?.fromMe,
+    timestamp,
+    name: message?.pushName?.trim() || undefined,
+    participant,
+    type: 'unknown',
+    raw: message,
+    quoted
+  }
+
+  if (!content) {
+    base.type = 'system'
+    base.text = '[Evento sem conteudo]'
+    return base
+  }
+
+  if (content?.conversation) {
+    return {
+      ...base,
+      type: 'text',
+      text: content.conversation
+    }
+  }
+
+  if (content?.extendedTextMessage?.text) {
+    return {
+      ...base,
+      type: 'text',
+      text: content.extendedTextMessage.text
+    }
+  }
+
+  if (content?.imageMessage) {
+    return {
+      ...base,
+      type: 'image',
+      text: content.imageMessage.caption || '[Imagem]',
+      media: {
+        kind: 'image',
+        mimetype: content.imageMessage.mimetype || undefined,
+        caption: content.imageMessage.caption || undefined,
+        fileLength: Number(content.imageMessage.fileLength || 0) || undefined,
+        hasMedia: true,
+        mediaKeyTs: normalizeTimestamp(content.imageMessage.mediaKeyTimestamp)
+      }
+    }
+  }
+
+  if (content?.videoMessage) {
+    return {
+      ...base,
+      type: 'video',
+      text: content.videoMessage.caption || '[Video]',
+      media: {
+        kind: 'video',
+        mimetype: content.videoMessage.mimetype || undefined,
+        caption: content.videoMessage.caption || undefined,
+        seconds: Number(content.videoMessage.seconds || 0) || undefined,
+        fileLength: Number(content.videoMessage.fileLength || 0) || undefined,
+        hasMedia: true,
+        mediaKeyTs: normalizeTimestamp(content.videoMessage.mediaKeyTimestamp)
+      }
+    }
+  }
+
+  if (content?.audioMessage) {
+    return {
+      ...base,
+      type: 'audio',
+      text: '[Audio]',
+      media: {
+        kind: 'audio',
+        mimetype: content.audioMessage.mimetype || undefined,
+        seconds: Number(content.audioMessage.seconds || 0) || undefined,
+        fileLength: Number(content.audioMessage.fileLength || 0) || undefined,
+        hasMedia: true,
+        mediaKeyTs: normalizeTimestamp(content.audioMessage.mediaKeyTimestamp)
+      }
+    }
+  }
+
+  if (content?.stickerMessage) {
+    return {
+      ...base,
+      type: 'sticker',
+      text: '[Sticker]',
+      media: {
+        kind: 'sticker',
+        mimetype: content.stickerMessage.mimetype || undefined,
+        hasMedia: true,
+        mediaKeyTs: normalizeTimestamp(content.stickerMessage.mediaKeyTimestamp)
+      }
+    }
+  }
+
+  if (content?.documentMessage) {
+    return {
+      ...base,
+      type: 'document',
+      text: content.documentMessage.caption || content.documentMessage.fileName || '[Documento]',
+      media: {
+        kind: 'document',
+        mimetype: content.documentMessage.mimetype || undefined,
+        fileName: content.documentMessage.fileName || undefined,
+        caption: content.documentMessage.caption || undefined,
+        fileLength: Number(content.documentMessage.fileLength || 0) || undefined,
+        hasMedia: true,
+        mediaKeyTs: normalizeTimestamp(content.documentMessage.mediaKeyTimestamp)
+      }
+    }
+  }
+
+  if (content?.contactMessage || content?.contactsArrayMessage) {
+    return {
+      ...base,
+      type: 'contact',
+      text: '[Contato]'
+    }
+  }
+
+  if (content?.locationMessage || content?.liveLocationMessage) {
+    return {
+      ...base,
+      type: 'location',
+      text: '[Localizacao]'
+    }
+  }
+
+  if (content?.pollCreationMessage || content?.pollCreationMessageV2 || content?.pollCreationMessageV3) {
+    const pollName =
+      content?.pollCreationMessage?.name ||
+      content?.pollCreationMessageV2?.name ||
+      content?.pollCreationMessageV3?.name
+
+    return {
+      ...base,
+      type: 'poll',
+      text: pollName ? `[Enquete] ${pollName}` : '[Enquete]'
+    }
+  }
+
+  if (content?.reactionMessage) {
+    return {
+      ...base,
+      type: 'reaction',
+      text: content.reactionMessage.text ? `[Reacao] ${content.reactionMessage.text}` : '[Reacao removida]',
+      reaction: {
+        targetId: content.reactionMessage.key?.id || undefined,
+        emoji: content.reactionMessage.text || undefined
+      },
+      targetMessageId: content.reactionMessage.key?.id || undefined
+    }
+  }
+
+  const interactive = parseInteractive(content)
+  if (interactive) {
+    return {
+      ...base,
+      type: 'interactive',
+      text: interactive.body || '[Mensagem interativa]',
+      interactive
+    }
+  }
+
+  if (content?.protocolMessage) {
+    const protocol = content.protocolMessage
+
+    if (protocol?.type === 0 && protocol?.key?.id) {
+      return {
+        ...base,
+        type: 'system',
+        text: '[Mensagem apagada]',
+        isDeleted: true,
+        targetMessageId: protocol.key.id
+      }
+    }
+
+    if (protocol?.editedMessage) {
+      const edited = parseMessagePayload({
+        key: message.key,
+        message: protocol.editedMessage,
+        messageTimestamp: message.messageTimestamp,
+        pushName: message.pushName
+      })
+
+      return {
+        ...base,
+        type: edited?.type || 'text',
+        text: edited?.text || '[Mensagem editada]',
+        media: edited?.media,
+        interactive: edited?.interactive,
+        quoted: edited?.quoted,
+        isEdited: true,
+        targetMessageId: protocol?.key?.id || message?.key?.id
+      }
+    }
+
+    return {
+      ...base,
+      type: 'system',
+      text: '[Atualizacao de mensagem]'
+    }
+  }
+
+  const firstType = Object.keys(content || {})[0]
+  return {
+    ...base,
+    type: 'unknown',
+    text: '[Mensagem nao suportada]',
+    rawType: firstType || undefined
+  }
 }
 
 function emitContactUpdate(
@@ -203,6 +604,26 @@ function emitChatSnapshot(
   })
 }
 
+function receiptStatus(receipt: any): 'server_ack' | 'delivery_ack' | 'read' | 'played' {
+  if (receipt?.playedTimestamp || receipt?.playedTimestampMs) {
+    return 'played'
+  }
+
+  if (receipt?.readTimestamp || receipt?.readTimestampMs) {
+    return 'read'
+  }
+
+  if (receipt?.receiptTimestamp || receipt?.receiptTimestampMs) {
+    return 'delivery_ack'
+  }
+
+  return 'server_ack'
+}
+
+function emitEvent(options: CreateSessionOptions, name: string, summary: string) {
+  options.onEvent?.({ name, summary })
+}
+
 export async function createSession(sessionId: string, options: CreateSessionOptions = {}) {
   const { state, saveCreds } = await useMultiFileAuthState(`auth/${sessionId}`)
   const { version } = await fetchLatestBaileysVersion()
@@ -217,24 +638,204 @@ export async function createSession(sessionId: string, options: CreateSessionOpt
 
   sock.ev.on('creds.update', saveCreds)
 
-  sock.ev.on('messages.upsert', ({ messages }) => {
-    for (const incoming of messages) {
-      const jid = normalizeJid(incoming.key?.remoteJid)
-      const text = extractText(incoming.message)
+  sock.ev.on('messages.upsert', ({ messages, type }) => {
+    emitEvent(options, 'messages.upsert', `Mensagens ${type}: ${messages?.length || 0}`)
 
-      if (!jid || !text || jid === 'status@broadcast') {
+    for (const incoming of messages || []) {
+      const parsed = parseMessagePayload(incoming)
+
+      if (!parsed) {
         continue
       }
 
-      const unixTimestamp = Number(incoming.messageTimestamp || Math.floor(Date.now() / 1000))
+      if (parsed.type === 'reaction' && parsed.targetMessageId) {
+        options.onReaction?.({
+          jid: parsed.jid,
+          messageId: parsed.targetMessageId,
+          emoji: parsed.reaction?.emoji,
+          actor: parsed.participant || parsed.jid,
+          fromMe: parsed.fromMe,
+          timestamp: parsed.timestamp
+        })
+        continue
+      }
 
-      options.onIncomingMessage?.({
-        id: incoming.key?.id,
+      if (parsed.isDeleted && parsed.targetMessageId) {
+        options.onMessageDelete?.({
+          jid: parsed.jid,
+          messageId: parsed.targetMessageId,
+          timestamp: parsed.timestamp
+        })
+        continue
+      }
+
+      options.onIncomingMessage?.(parsed)
+    }
+  })
+
+  sock.ev.on('messages.update', (updates) => {
+    emitEvent(options, 'messages.update', `Atualizacoes de mensagem: ${updates?.length || 0}`)
+
+    for (const item of updates || []) {
+      const jid = normalizeJid(item?.key?.remoteJid)
+      const id = item?.key?.id
+
+      if (!jid || !id) {
+        continue
+      }
+
+      if (item.update?.status !== undefined) {
+        options.onMessageUpdate?.({
+          id,
+          jid,
+          status: Number(item.update.status)
+        })
+      }
+
+      if (!item.update?.message) {
+        continue
+      }
+
+      const parsed = parseMessagePayload({
+        key: item.key,
+        message: item.update.message,
+        messageTimestamp: item.update.messageTimestamp,
+        pushName: undefined
+      })
+
+      if (!parsed) {
+        continue
+      }
+
+      if (parsed.type === 'reaction' && parsed.targetMessageId) {
+        options.onReaction?.({
+          jid,
+          messageId: parsed.targetMessageId,
+          emoji: parsed.reaction?.emoji,
+          actor: parsed.participant,
+          fromMe: parsed.fromMe,
+          timestamp: parsed.timestamp
+        })
+        continue
+      }
+
+      if (parsed.isDeleted && parsed.targetMessageId) {
+        options.onMessageDelete?.({
+          jid,
+          messageId: parsed.targetMessageId,
+          timestamp: parsed.timestamp
+        })
+        continue
+      }
+
+      options.onMessageUpdate?.({
+        id: parsed.targetMessageId || id,
         jid,
-        text,
-        fromMe: !!incoming.key?.fromMe,
-        timestamp: unixTimestamp * 1000,
-        name: incoming.pushName?.trim() || undefined
+        text: parsed.text,
+        timestamp: parsed.timestamp,
+        status: item.update?.status !== undefined ? Number(item.update.status) : undefined,
+        type: parsed.type,
+        rawType: parsed.rawType,
+        media: parsed.media,
+        interactive: parsed.interactive,
+        quoted: parsed.quoted,
+        isEdited: parsed.isEdited,
+        isDeleted: parsed.isDeleted,
+        participant: parsed.participant,
+        name: parsed.name
+      })
+    }
+  })
+
+  sock.ev.on('messages.delete', (event) => {
+    if ('keys' in event && Array.isArray(event.keys)) {
+      emitEvent(options, 'messages.delete', `Mensagens apagadas: ${event.keys.length}`)
+
+      for (const key of event.keys) {
+        const jid = normalizeJid(key?.remoteJid)
+        const id = key?.id
+
+        if (!jid || !id) {
+          continue
+        }
+
+        options.onMessageDelete?.({
+          jid,
+          messageId: id,
+          timestamp: Date.now()
+        })
+      }
+
+      return
+    }
+
+    if ('jid' in event) {
+      emitEvent(options, 'messages.delete', `Todas as mensagens apagadas no chat ${event.jid}`)
+    }
+  })
+
+  sock.ev.on('messages.reaction', (events) => {
+    emitEvent(options, 'messages.reaction', `Reacoes: ${events?.length || 0}`)
+
+    for (const reactionEvent of events || []) {
+      const jid = normalizeJid(reactionEvent?.key?.remoteJid)
+      const messageId = reactionEvent?.key?.id
+
+      if (!jid || !messageId) {
+        continue
+      }
+
+      options.onReaction?.({
+        jid,
+        messageId,
+        emoji: reactionEvent?.reaction?.text || undefined,
+        actor: normalizeJid(reactionEvent?.reaction?.key?.participant) || undefined,
+        fromMe: !!reactionEvent?.reaction?.key?.fromMe,
+        timestamp: normalizeTimestamp(reactionEvent?.reaction?.senderTimestampMs)
+      })
+    }
+  })
+
+  sock.ev.on('message-receipt.update', (events) => {
+    emitEvent(options, 'message-receipt.update', `Receipts: ${events?.length || 0}`)
+
+    for (const receiptEvent of events || []) {
+      const jid = normalizeJid(receiptEvent?.key?.remoteJid)
+      const messageId = receiptEvent?.key?.id
+
+      if (!jid || !messageId) {
+        continue
+      }
+
+      options.onMessageReceipt?.({
+        jid,
+        messageId,
+        participant: normalizeJid(receiptEvent?.receipt?.userJid) || undefined,
+        status: receiptStatus(receiptEvent?.receipt),
+        timestamp:
+          normalizeTimestamp(receiptEvent?.receipt?.playedTimestamp) ||
+          normalizeTimestamp(receiptEvent?.receipt?.readTimestamp) ||
+          normalizeTimestamp(receiptEvent?.receipt?.receiptTimestamp)
+      })
+    }
+  })
+
+  sock.ev.on('presence.update', (event) => {
+    const jid = normalizeJid(event?.id)
+
+    if (!jid) {
+      return
+    }
+
+    const participants = Object.entries(event?.presences || {})
+
+    emitEvent(options, 'presence.update', `Presencas atualizadas: ${participants.length}`)
+
+    for (const [participant, presence] of participants) {
+      options.onPresenceUpdate?.({
+        jid,
+        participant: normalizeJid(participant) || participant,
+        lastKnownPresence: (presence as any)?.lastKnownPresence || undefined
       })
     }
   })
@@ -244,6 +845,12 @@ export async function createSession(sessionId: string, options: CreateSessionOpt
     const historyNamesByJid = new Map<string, string>()
     let importedMessages = 0
     let skippedMessages = 0
+
+    emitEvent(
+      options,
+      'messaging-history.set',
+      `Historico: mensagens=${totalHistoryMessages}, contatos=${contacts?.length || 0}, chats=${chats?.length || 0}`
+    )
 
     for (const contact of contacts || []) {
       emitContactUpdate(options, {
@@ -264,8 +871,8 @@ export async function createSession(sessionId: string, options: CreateSessionOpt
         (jid): jid is string => !!jid
       )
 
-      for (const jid of knownJids) {
-        historyNamesByJid.set(jid, name)
+      for (const knownJid of knownJids) {
+        historyNamesByJid.set(knownJid, name)
       }
     }
 
@@ -284,25 +891,19 @@ export async function createSession(sessionId: string, options: CreateSessionOpt
     }
 
     for (const historyMessage of messages || []) {
-      const jid = normalizeJid(historyMessage.key?.remoteJid)
-      const text = extractText(historyMessage.message)
+      const parsed = parseMessagePayload(historyMessage)
 
-      if (!jid || jid === 'status@broadcast' || !text) {
+      if (!parsed) {
         skippedMessages += 1
         continue
       }
 
-      const unixTimestamp = Number(historyMessage.messageTimestamp || Math.floor(Date.now() / 1000))
+      if (!parsed.name) {
+        parsed.name = historyNamesByJid.get(parsed.jid)
+      }
 
       importedMessages += 1
-      options.onHistoryMessage?.({
-        id: historyMessage.key?.id,
-        jid,
-        text,
-        fromMe: !!historyMessage.key?.fromMe,
-        timestamp: unixTimestamp * 1000,
-        name: historyMessage.pushName?.trim() || historyNamesByJid.get(jid)
-      })
+      options.onHistoryMessage?.(parsed)
     }
 
     console.log(
@@ -311,9 +912,7 @@ export async function createSession(sessionId: string, options: CreateSessionOpt
   })
 
   sock.ev.on('chats.upsert', (chats) => {
-    if (Array.isArray(chats) && chats.length) {
-      console.log(`[${sessionId}] chats.upsert recebidos: ${chats.length}`)
-    }
+    emitEvent(options, 'chats.upsert', `Chats upsert: ${chats?.length || 0}`)
 
     for (const chat of chats || []) {
       emitChatSnapshot(options, {
@@ -327,9 +926,7 @@ export async function createSession(sessionId: string, options: CreateSessionOpt
   })
 
   sock.ev.on('chats.update', (chats) => {
-    if (Array.isArray(chats) && chats.length) {
-      console.log(`[${sessionId}] chats.update recebidos: ${chats.length}`)
-    }
+    emitEvent(options, 'chats.update', `Chats update: ${chats?.length || 0}`)
 
     for (const chat of chats || []) {
       emitChatSnapshot(options, {
@@ -343,6 +940,8 @@ export async function createSession(sessionId: string, options: CreateSessionOpt
   })
 
   sock.ev.on('contacts.upsert', (contacts) => {
+    emitEvent(options, 'contacts.upsert', `Contatos novos: ${contacts?.length || 0}`)
+
     for (const contact of contacts || []) {
       emitContactUpdate(options, {
         id: contact.id,
@@ -356,6 +955,8 @@ export async function createSession(sessionId: string, options: CreateSessionOpt
   })
 
   sock.ev.on('contacts.update', (contacts) => {
+    emitEvent(options, 'contacts.update', `Contatos atualizados: ${contacts?.length || 0}`)
+
     for (const contact of contacts || []) {
       emitContactUpdate(options, {
         id: contact.id,
@@ -369,11 +970,41 @@ export async function createSession(sessionId: string, options: CreateSessionOpt
   })
 
   sock.ev.on('chats.phoneNumberShare', ({ lid, jid }) => {
+    emitEvent(options, 'chats.phoneNumberShare', 'Mapeamento lid para phone number recebido')
+
     emitContactUpdate(options, {
       id: jid,
       jid,
       lid
     })
+  })
+
+  sock.ev.on('groups.upsert', (groups) => {
+    emitEvent(options, 'groups.upsert', `Grupos carregados: ${groups?.length || 0}`)
+  })
+
+  sock.ev.on('groups.update', (groups) => {
+    emitEvent(options, 'groups.update', `Grupos atualizados: ${groups?.length || 0}`)
+  })
+
+  sock.ev.on('group-participants.update', (event) => {
+    emitEvent(
+      options,
+      'group-participants.update',
+      `Grupo ${event.id}: ${event.action} (${event.participants?.length || 0} participante(s))`
+    )
+  })
+
+  sock.ev.on('blocklist.set', (event) => {
+    emitEvent(options, 'blocklist.set', `Blocklist total: ${event.blocklist?.length || 0}`)
+  })
+
+  sock.ev.on('blocklist.update', (event) => {
+    emitEvent(options, 'blocklist.update', `Blocklist ${event.type}: ${event.blocklist?.length || 0}`)
+  })
+
+  sock.ev.on('call', (events) => {
+    emitEvent(options, 'call', `Eventos de chamada: ${events?.length || 0}`)
   })
 
   sock.ev.on('connection.update', (update) => {
@@ -388,21 +1019,25 @@ export async function createSession(sessionId: string, options: CreateSessionOpt
       isLoggedOut
     })
 
+    if (connection) {
+      emitEvent(options, 'connection.update', `Conexao: ${connection}${statusCode ? ` (${statusCode})` : ''}`)
+    }
+
     if (qr) {
-      console.log(`Escaneie o QR da sessão ${sessionId}`)
+      console.log(`Escaneie o QR da sessao ${sessionId}`)
       qrcode.generate(qr, { small: true })
     }
 
     if (connection === 'close') {
-      console.log('Conexão fechada. Status:', statusCode)
+      console.log('Conexao fechada. Status:', statusCode)
 
       if (statusCode === DisconnectReason.loggedOut) {
-        console.log('Sessão deslogada. Apague auth e conecte novamente.')
+        console.log('Sessao deslogada. Apague auth e conecte novamente.')
       }
     }
 
     if (connection === 'open') {
-      console.log(`Sessão ${sessionId} conectada com sucesso.`)
+      console.log(`Sessao ${sessionId} conectada com sucesso.`)
     }
   })
 

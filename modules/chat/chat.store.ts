@@ -1,6 +1,56 @@
 import { jidNormalizedUser } from '@whiskeysockets/baileys'
 
 type MessageDirection = 'inbound' | 'outbound'
+type MessageKind =
+  | 'text'
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'sticker'
+  | 'document'
+  | 'contact'
+  | 'location'
+  | 'poll'
+  | 'reaction'
+  | 'interactive'
+  | 'system'
+  | 'unknown'
+
+type MessageStatus = 'error' | 'pending' | 'server_ack' | 'delivery_ack' | 'read' | 'played' | 'unknown'
+
+type MessageMedia = {
+  kind: 'image' | 'video' | 'audio' | 'sticker' | 'document'
+  mimetype?: string
+  fileName?: string
+  caption?: string
+  seconds?: number
+  fileLength?: number
+  hasMedia?: boolean
+  mediaKeyTs?: number
+}
+
+type MessageReaction = {
+  emoji: string
+  actor?: string
+  fromMe?: boolean
+  timestamp?: number
+}
+
+type MessageInteractive = {
+  kind: 'buttons' | 'list' | 'template' | 'native' | 'response' | 'unknown'
+  title?: string
+  body?: string
+  footer?: string
+  selectedId?: string
+  selectedText?: string
+  options?: Array<{ id: string; title: string; description?: string }>
+}
+
+type MessageQuote = {
+  id?: string
+  participant?: string
+  text?: string
+}
 
 export type ChatMessage = {
   id: string
@@ -9,6 +59,21 @@ export type ChatMessage = {
   direction: MessageDirection
   fromMe: boolean
   timestamp: number
+  type: MessageKind
+  status?: MessageStatus
+  rawType?: string
+  name?: string
+  participant?: string
+  isEdited?: boolean
+  isDeleted?: boolean
+  media?: MessageMedia
+  reaction?: {
+    targetId?: string
+    emoji?: string
+  }
+  reactions?: MessageReaction[]
+  interactive?: MessageInteractive
+  quoted?: MessageQuote
 }
 
 type ChatMeta = {
@@ -17,12 +82,21 @@ type ChatMeta = {
   unread: number
   lastTimestamp: number
   lastMessage: string
+  lastMessageType?: MessageKind
+}
+
+export type SessionEvent = {
+  id: string
+  name: string
+  timestamp: number
+  summary: string
 }
 
 type SessionChats = {
   messages: Record<string, ChatMessage[]>
   meta: Record<string, ChatMeta>
   aliases: Record<string, string>
+  events: SessionEvent[]
 }
 
 const store: Record<string, SessionChats> = {}
@@ -32,9 +106,25 @@ function normalizeJid(jid: string): string {
   return normalized || String(jid || '').trim().toLowerCase()
 }
 
+function normalizeMessageStatus(status?: number | string | null): MessageStatus {
+  if (status === 'error') return 'error'
+  if (status === 'pending') return 'pending'
+  if (status === 'server_ack') return 'server_ack'
+  if (status === 'delivery_ack') return 'delivery_ack'
+  if (status === 'read') return 'read'
+  if (status === 'played') return 'played'
+  if (status === 'ERROR' || status === 0) return 'error'
+  if (status === 'PENDING' || status === 1) return 'pending'
+  if (status === 'SERVER_ACK' || status === 2) return 'server_ack'
+  if (status === 'DELIVERY_ACK' || status === 3) return 'delivery_ack'
+  if (status === 'READ' || status === 4) return 'read'
+  if (status === 'PLAYED' || status === 5) return 'played'
+  return 'unknown'
+}
+
 function ensureSession(sessionId: string): SessionChats {
   if (!store[sessionId]) {
-    store[sessionId] = { messages: {}, meta: {}, aliases: {} }
+    store[sessionId] = { messages: {}, meta: {}, aliases: {}, events: [] }
   }
 
   return store[sessionId]
@@ -208,6 +298,7 @@ function mergeChats(session: SessionChats, targetJid: string, sourceJid: string)
     if (sourceMeta.lastTimestamp >= target.meta.lastTimestamp) {
       target.meta.lastTimestamp = sourceMeta.lastTimestamp
       target.meta.lastMessage = sourceMeta.lastMessage
+      target.meta.lastMessageType = sourceMeta.lastMessageType
     }
 
     if (!target.meta.name && sourceMeta.name) {
@@ -233,54 +324,236 @@ function nextMessageId(jid: string, timestamp: number) {
   return `${jid}-${timestamp}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+function messagePreview(message: Pick<ChatMessage, 'type' | 'text' | 'media' | 'reaction' | 'interactive' | 'isDeleted'>): string {
+  if (message.isDeleted) {
+    return '[Mensagem apagada]'
+  }
+
+  if (message.type === 'reaction') {
+    return message.reaction?.emoji ? `[Reacao] ${message.reaction.emoji}` : '[Reacao]'
+  }
+
+  if (message.type === 'interactive') {
+    const kind = message.interactive?.kind || 'interactive'
+    return `[Interativa ${kind}] ${message.text || ''}`.trim()
+  }
+
+  if (message.type === 'image') return message.text || '[Imagem]'
+  if (message.type === 'video') return message.text || '[Video]'
+  if (message.type === 'audio') return message.text || '[Audio]'
+  if (message.type === 'sticker') return '[Sticker]'
+  if (message.type === 'document') return message.media?.fileName ? `[Documento] ${message.media.fileName}` : '[Documento]'
+  if (message.type === 'contact') return '[Contato]'
+  if (message.type === 'location') return '[Localizacao]'
+  if (message.type === 'poll') return message.text || '[Enquete]'
+  if (message.type === 'system') return message.text || '[Sistema]'
+
+  return message.text || '[Mensagem]'
+}
+
+function mergeMessage(existing: ChatMessage, incoming: Partial<ChatMessage>) {
+  if (incoming.text && incoming.text !== existing.text) {
+    existing.text = incoming.text
+  }
+
+  if (incoming.timestamp && incoming.timestamp > existing.timestamp) {
+    existing.timestamp = incoming.timestamp
+  }
+
+  if (incoming.type && existing.type === 'unknown') {
+    existing.type = incoming.type
+  }
+
+  if (incoming.status) {
+    existing.status = incoming.status
+  }
+
+  if (incoming.rawType) {
+    existing.rawType = incoming.rawType
+  }
+
+  if (incoming.name) {
+    existing.name = incoming.name
+  }
+
+  if (incoming.participant) {
+    existing.participant = incoming.participant
+  }
+
+  if (incoming.isEdited) {
+    existing.isEdited = true
+  }
+
+  if (incoming.isDeleted) {
+    existing.isDeleted = true
+    existing.text = '[Mensagem apagada]'
+    existing.type = 'system'
+  }
+
+  if (incoming.media) {
+    existing.media = {
+      ...existing.media,
+      ...incoming.media
+    }
+  }
+
+  if (incoming.interactive) {
+    existing.interactive = {
+      ...existing.interactive,
+      ...incoming.interactive
+    }
+  }
+
+  if (incoming.quoted) {
+    existing.quoted = {
+      ...existing.quoted,
+      ...incoming.quoted
+    }
+  }
+
+  if (incoming.reaction) {
+    existing.reaction = {
+      ...existing.reaction,
+      ...incoming.reaction
+    }
+  }
+}
+
 function upsertMessage(
   sessionId: string,
-  jid: string,
-  text: string,
-  fromMe: boolean,
-  timestamp: number,
-  options: { id?: string; name?: string; countUnread?: boolean } = {}
+  payload: {
+    id?: string
+    jid: string
+    text?: string
+    fromMe: boolean
+    timestamp?: number
+    type?: MessageKind
+    status?: MessageStatus | number | string
+    rawType?: string
+    name?: string
+    participant?: string
+    media?: MessageMedia
+    reaction?: {
+      targetId?: string
+      emoji?: string
+    }
+    interactive?: MessageInteractive
+    quoted?: MessageQuote
+    isEdited?: boolean
+    isDeleted?: boolean
+  },
+  options: { countUnread?: boolean } = {}
 ) {
   const session = ensureSession(sessionId)
-  const chat = ensureChat(session, jid)
+  const chat = ensureChat(session, payload.jid)
 
   if (!chat) {
     return
   }
 
-  const normalizedTimestamp = Number.isFinite(timestamp) ? timestamp : Date.now()
-  const id = options.id || nextMessageId(chat.jid, normalizedTimestamp)
-  const alreadyExists = chat.messages.some((message) => message.id === id)
+  const normalizedTimestamp = Number.isFinite(payload.timestamp) ? Number(payload.timestamp) : Date.now()
+  const id = payload.id || nextMessageId(chat.jid, normalizedTimestamp)
+  const existing = chat.messages.find((message) => message.id === id)
+  const nextType = payload.type || 'unknown'
+  const normalizedStatus = normalizeMessageStatus(payload.status as number | string | null)
 
-  if (alreadyExists) {
+  if (existing) {
+    mergeMessage(existing, {
+      text: payload.text,
+      timestamp: normalizedTimestamp,
+      type: nextType,
+      status: normalizedStatus === 'unknown' ? existing.status : normalizedStatus,
+      rawType: payload.rawType,
+      name: payload.name,
+      participant: payload.participant,
+      media: payload.media,
+      reaction: payload.reaction,
+      interactive: payload.interactive,
+      quoted: payload.quoted,
+      isEdited: payload.isEdited,
+      isDeleted: payload.isDeleted
+    })
+  } else {
+    chat.messages.push({
+      id,
+      jid: chat.jid,
+      text: payload.isDeleted ? '[Mensagem apagada]' : payload.text || '',
+      direction: payload.fromMe ? 'outbound' : 'inbound',
+      fromMe: payload.fromMe,
+      timestamp: normalizedTimestamp,
+      type: payload.isDeleted ? 'system' : nextType,
+      status: normalizedStatus,
+      rawType: payload.rawType,
+      name: payload.name,
+      participant: payload.participant,
+      isEdited: payload.isEdited,
+      isDeleted: payload.isDeleted,
+      media: payload.media,
+      reaction: payload.reaction,
+      interactive: payload.interactive,
+      quoted: payload.quoted,
+      reactions: []
+    })
+  }
+
+  chat.messages.sort((a, b) => a.timestamp - b.timestamp)
+
+  const currentMessage = chat.messages.find((message) => message.id === id)
+  if (!currentMessage) {
     return
   }
 
-  chat.messages.push({
-    id,
-    jid: chat.jid,
-    text,
-    direction: fromMe ? 'outbound' : 'inbound',
-    fromMe,
-    timestamp: normalizedTimestamp
-  })
-
-  if (!fromMe && options.countUnread !== false) {
+  if (!payload.fromMe && options.countUnread !== false) {
     chat.meta.unread += 1
   }
 
   if (normalizedTimestamp >= chat.meta.lastTimestamp) {
     chat.meta.lastTimestamp = normalizedTimestamp
-    chat.meta.lastMessage = text
+    chat.meta.lastMessage = messagePreview(currentMessage)
+    chat.meta.lastMessageType = currentMessage.type
   }
 
-  const normalizedName = options.name?.trim()
+  const normalizedName = payload.name?.trim()
   if (normalizedName) {
     chat.meta.name = normalizedName
   }
 }
 
+function findMessage(session: SessionChats, jid: string, messageId: string) {
+  const chat = ensureChat(session, jid)
+
+  if (!chat) {
+    return undefined
+  }
+
+  return chat.messages.find((message) => message.id === messageId)
+}
+
+function addSessionEvent(session: SessionChats, name: string, summary: string) {
+  session.events.unshift({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name,
+    timestamp: Date.now(),
+    summary
+  })
+
+  if (session.events.length > 250) {
+    session.events.length = 250
+  }
+}
+
 export class ChatStore {
+  static addEvent(sessionId: string, name: string, summary: string) {
+    const session = ensureSession(sessionId)
+    addSessionEvent(session, name, summary)
+  }
+
+  static listEvents(sessionId: string, limit = 80) {
+    const session = ensureSession(sessionId)
+    const normalizedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(250, Math.floor(limit))) : 80
+    return session.events.slice(0, normalizedLimit)
+  }
+
   static upsertContact(
     sessionId: string,
     payload: {
@@ -350,31 +623,84 @@ export class ChatStore {
       .map((value) => value?.trim())
       .find((value) => !!value)
 
-    if (preferredName) {
-      for (const resolvedJid of resolvedCandidates) {
-        const currentJid = resolveJid(session, resolvedJid)
-        const currentMeta = currentJid ? session.meta[currentJid] : undefined
+    if (!preferredName) {
+      return
+    }
 
-        if (currentMeta) {
-          currentMeta.name = preferredName
-        }
+    for (const resolvedJid of resolvedCandidates) {
+      const currentJid = resolveJid(session, resolvedJid)
+      const currentMeta = currentJid ? session.meta[currentJid] : undefined
+
+      if (currentMeta) {
+        currentMeta.name = preferredName
       }
     }
   }
 
   static addIncoming(
     sessionId: string,
-    jid: string,
-    text: string,
-    timestamp = Date.now(),
-    name?: string,
-    id?: string
+    payload: {
+      id?: string
+      jid: string
+      text?: string
+      timestamp?: number
+      name?: string
+      participant?: string
+      type?: MessageKind
+      media?: MessageMedia
+      reaction?: {
+        targetId?: string
+        emoji?: string
+      }
+      interactive?: MessageInteractive
+      quoted?: MessageQuote
+      status?: MessageStatus | number | string
+      rawType?: string
+      isEdited?: boolean
+      isDeleted?: boolean
+    }
   ) {
-    upsertMessage(sessionId, jid, text, false, timestamp, { id, name, countUnread: true })
+    upsertMessage(
+      sessionId,
+      {
+        ...payload,
+        fromMe: false
+      },
+      { countUnread: true }
+    )
   }
 
-  static addOutgoing(sessionId: string, jid: string, text: string, timestamp = Date.now(), id?: string, name?: string) {
-    upsertMessage(sessionId, jid, text, true, timestamp, { id, name })
+  static addOutgoing(
+    sessionId: string,
+    payload: {
+      id?: string
+      jid: string
+      text?: string
+      timestamp?: number
+      name?: string
+      participant?: string
+      type?: MessageKind
+      media?: MessageMedia
+      reaction?: {
+        targetId?: string
+        emoji?: string
+      }
+      interactive?: MessageInteractive
+      quoted?: MessageQuote
+      status?: MessageStatus | number | string
+      rawType?: string
+      isEdited?: boolean
+      isDeleted?: boolean
+    }
+  ) {
+    upsertMessage(
+      sessionId,
+      {
+        ...payload,
+        fromMe: true
+      },
+      { countUnread: false }
+    )
   }
 
   static addHistory(
@@ -382,20 +708,158 @@ export class ChatStore {
     payload: {
       id?: string
       jid: string
-      text: string
+      text?: string
       fromMe: boolean
       timestamp: number
       name?: string
+      participant?: string
+      type?: MessageKind
+      media?: MessageMedia
+      reaction?: {
+        targetId?: string
+        emoji?: string
+      }
+      interactive?: MessageInteractive
+      quoted?: MessageQuote
+      status?: MessageStatus | number | string
+      rawType?: string
+      isEdited?: boolean
+      isDeleted?: boolean
     }
   ) {
-    upsertMessage(
-      sessionId,
-      payload.jid,
-      payload.text,
-      payload.fromMe,
-      payload.timestamp,
-      { id: payload.id, name: payload.name, countUnread: false }
-    )
+    upsertMessage(sessionId, payload, { countUnread: false })
+  }
+
+  static updateMessage(
+    sessionId: string,
+    payload: {
+      id: string
+      jid: string
+      text?: string
+      timestamp?: number
+      status?: MessageStatus | number | string
+      type?: MessageKind
+      rawType?: string
+      media?: MessageMedia
+      interactive?: MessageInteractive
+      quoted?: MessageQuote
+      isEdited?: boolean
+      isDeleted?: boolean
+      participant?: string
+      name?: string
+    }
+  ) {
+    const session = ensureSession(sessionId)
+    const message = findMessage(session, payload.jid, payload.id)
+
+    if (!message) {
+      upsertMessage(
+        sessionId,
+        {
+          id: payload.id,
+          jid: payload.jid,
+          text: payload.text || '',
+          fromMe: false,
+          timestamp: payload.timestamp || Date.now(),
+          status: payload.status,
+          type: payload.type || 'unknown',
+          rawType: payload.rawType,
+          media: payload.media,
+          interactive: payload.interactive,
+          quoted: payload.quoted,
+          isEdited: payload.isEdited,
+          isDeleted: payload.isDeleted,
+          participant: payload.participant,
+          name: payload.name
+        },
+        { countUnread: false }
+      )
+
+      return
+    }
+
+    mergeMessage(message, {
+      text: payload.text,
+      timestamp: payload.timestamp,
+      status: normalizeMessageStatus(payload.status as number | string | null),
+      type: payload.type,
+      rawType: payload.rawType,
+      media: payload.media,
+      interactive: payload.interactive,
+      quoted: payload.quoted,
+      isEdited: payload.isEdited,
+      isDeleted: payload.isDeleted,
+      participant: payload.participant,
+      name: payload.name
+    })
+
+    const chat = ensureChat(session, payload.jid)
+    if (!chat) {
+      return
+    }
+
+    if (message.timestamp >= chat.meta.lastTimestamp) {
+      chat.meta.lastTimestamp = message.timestamp
+      chat.meta.lastMessage = messagePreview(message)
+      chat.meta.lastMessageType = message.type
+    }
+  }
+
+  static applyReaction(
+    sessionId: string,
+    payload: {
+      jid: string
+      messageId: string
+      emoji?: string
+      actor?: string
+      fromMe?: boolean
+      timestamp?: number
+    }
+  ) {
+    const session = ensureSession(sessionId)
+    const target = findMessage(session, payload.jid, payload.messageId)
+
+    if (!target) {
+      return
+    }
+
+    if (!target.reactions) {
+      target.reactions = []
+    }
+
+    const actorKey = payload.actor || (payload.fromMe ? 'me' : 'unknown')
+    const existingIndex = target.reactions.findIndex((reaction) => (reaction.actor || 'unknown') === actorKey)
+
+    if (!payload.emoji) {
+      if (existingIndex >= 0) {
+        target.reactions.splice(existingIndex, 1)
+      }
+      return
+    }
+
+    const nextReaction: MessageReaction = {
+      emoji: payload.emoji,
+      actor: payload.actor,
+      fromMe: payload.fromMe,
+      timestamp: payload.timestamp
+    }
+
+    if (existingIndex >= 0) {
+      target.reactions[existingIndex] = nextReaction
+    } else {
+      target.reactions.push(nextReaction)
+    }
+  }
+
+  static markMessageDeleted(sessionId: string, jid: string, messageId: string, timestamp = Date.now()) {
+    this.updateMessage(sessionId, {
+      id: messageId,
+      jid,
+      timestamp,
+      isDeleted: true,
+      type: 'system',
+      text: '[Mensagem apagada]'
+    })
   }
 
   static upsertHistoryChat(
@@ -406,6 +870,7 @@ export class ChatStore {
       unread?: number
       lastTimestamp?: number
       lastMessage?: string
+      lastMessageType?: MessageKind
     }
   ) {
     const session = ensureSession(sessionId)
@@ -431,8 +896,12 @@ export class ChatStore {
     }
 
     const normalizedLastMessage = payload.lastMessage?.trim()
-    if (normalizedLastMessage && !chat.meta.lastMessage) {
+    if (normalizedLastMessage) {
       chat.meta.lastMessage = normalizedLastMessage
+    }
+
+    if (payload.lastMessageType) {
+      chat.meta.lastMessageType = payload.lastMessageType
     }
   }
 
@@ -446,6 +915,12 @@ export class ChatStore {
     return Object.values(session.meta)
       .map((chat) => ({ ...chat }))
       .sort((a, b) => b.lastTimestamp - a.lastTimestamp)
+  }
+
+  static getMessage(sessionId: string, jid: string, messageId: string) {
+    const session = ensureSession(sessionId)
+    const message = findMessage(session, jid, messageId)
+    return message ? { ...message } : undefined
   }
 
   static getMessages(sessionId: string, jid: string) {

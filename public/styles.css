@@ -132,6 +132,8 @@ body {
 .session-controls button,
 .chat-search-wrap input,
 .message-form input,
+.message-form select,
+.message-form textarea,
 .message-form button {
   border-radius: 12px;
   border: 1px solid transparent;
@@ -142,7 +144,9 @@ body {
 
 .session-controls input,
 .chat-search-wrap input,
-.message-form input {
+.message-form input,
+.message-form select,
+.message-form textarea {
   width: 100%;
   color: var(--text-main);
   background: linear-gradient(0deg, rgba(32, 50, 58, 0.92), rgba(32, 50, 58, 0.92));
@@ -151,7 +155,9 @@ body {
 
 .session-controls input:focus-visible,
 .chat-search-wrap input:focus-visible,
-.message-form input:focus-visible {
+.message-form input:focus-visible,
+.message-form select:focus-visible,
+.message-form textarea:focus-visible {
   outline: none;
   border-color: rgba(60, 209, 173, 0.6);
   box-shadow: 0 0 0 3px rgba(60, 209, 173, 0.14);
@@ -316,10 +322,59 @@ body {
 }
 
 .chat-list {
-  height: 100%;
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   padding: 10px;
+}
+
+.event-panel {
+  border-top: 1px solid var(--border-soft);
+  background: rgba(15, 26, 31, 0.72);
+}
+
+.event-header {
+  padding: 10px 14px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.event-list {
+  max-height: 180px;
+  overflow: auto;
+  padding: 8px 10px 12px;
+}
+
+.event-item {
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 8px 9px;
+  background: rgba(24, 40, 47, 0.58);
+}
+
+.event-item + .event-item {
+  margin-top: 6px;
+}
+
+.event-name {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.event-summary {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-main);
+}
+
+.event-time {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .chat-item {
@@ -451,7 +506,6 @@ body {
 }
 
 .message-time {
-  margin-top: 6px;
   text-align: right;
   color: rgba(214, 230, 235, 0.72);
   font-size: 11px;
@@ -474,11 +528,131 @@ body {
 
 .message-form {
   display: grid;
-  grid-template-columns: minmax(220px, 320px) 1fr auto;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
   padding: 14px;
   border-top: 1px solid var(--border-soft);
   background: linear-gradient(0deg, rgba(21, 34, 40, 0.96), rgba(21, 34, 40, 0.96));
+}
+
+#jid-input {
+  grid-column: span 2;
+}
+
+#message-type {
+  grid-column: span 1;
+}
+
+#message-input {
+  grid-column: span 2;
+}
+
+#send-btn {
+  grid-column: span 1;
+}
+
+#media-url-input,
+#media-file-input,
+#mime-input,
+#file-name-input,
+#reaction-message-id,
+#reaction-emoji {
+  grid-column: span 3;
+}
+
+#interactive-json {
+  grid-column: 1 / -2;
+  resize: vertical;
+  min-height: 74px;
+}
+
+.message-meta {
+  margin-top: 6px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+}
+
+.message-flag {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: rgba(214, 230, 235, 0.72);
+}
+
+.message-status {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.message-participant {
+  margin-bottom: 5px;
+  font-size: 11px;
+  color: rgba(214, 230, 235, 0.72);
+}
+
+.message-quote {
+  margin: 0 0 7px;
+  border-left: 2px solid rgba(60, 209, 173, 0.6);
+  padding-left: 8px;
+  color: rgba(214, 230, 235, 0.84);
+  font-size: 12px;
+}
+
+.message-text {
+  white-space: pre-wrap;
+}
+
+.media-wrap {
+  margin-bottom: 6px;
+}
+
+.message-media-img {
+  max-width: min(280px, 100%);
+  border-radius: 10px;
+  display: block;
+}
+
+.message-media-video {
+  width: min(340px, 100%);
+  border-radius: 10px;
+}
+
+.load-media-btn,
+.doc-link {
+  display: inline-block;
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
+  padding: 7px 10px;
+  background: rgba(20, 33, 39, 0.72);
+  color: var(--text-main);
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.load-media-btn {
+  cursor: pointer;
+}
+
+.message-reactions {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.message-reactions span {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  background: rgba(60, 209, 173, 0.16);
+  border: 1px solid rgba(60, 209, 173, 0.25);
+}
+
+.interactive-options {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
 }
 
 @keyframes reveal-up {
@@ -548,5 +722,19 @@ body {
   .message-form {
     grid-template-columns: 1fr;
     padding: 12px;
+  }
+
+  #jid-input,
+  #message-type,
+  #message-input,
+  #send-btn,
+  #media-url-input,
+  #media-file-input,
+  #mime-input,
+  #file-name-input,
+  #reaction-message-id,
+  #reaction-emoji,
+  #interactive-json {
+    grid-column: auto;
   }
 }
