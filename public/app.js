@@ -1,7 +1,6 @@
 const state = {
   sessionId: null,
   chats: [],
-  events: [],
   activeJid: null,
   activeMessages: [],
   activeMessagesSignature: "",
@@ -25,7 +24,6 @@ const elements = {
   connectionPill: document.getElementById("connection-pill"),
   chatSearchInput: document.getElementById("chat-search-input"),
   chatList: document.getElementById("chat-list"),
-  eventList: document.getElementById("event-list"),
   chatHeaderTitle: document.getElementById("chat-header-title"),
   chatHeaderSubtitle: document.getElementById("chat-header-subtitle"),
   messageList: document.getElementById("message-list"),
@@ -279,28 +277,6 @@ function renderChats() {
   });
 }
 
-function renderEvents() {
-  if (!state.events.length) {
-    elements.eventList.innerHTML =
-      '<p class="empty-state">Sem eventos ainda.</p>';
-    return;
-  }
-
-  elements.eventList.innerHTML = state.events
-    .map((event) => {
-      const name = escapeHtml(event.name);
-      const summary = escapeHtml(event.summary || "");
-      return `
-        <article class="event-item">
-          <div class="event-name">${name}</div>
-          <div class="event-summary">${summary}</div>
-          <div class="event-time">${formatTime(event.timestamp)}</div>
-        </article>
-      `;
-    })
-    .join("");
-}
-
 function mediaCacheKey(message) {
   return `${state.sessionId || ""}|${message?.jid || ""}|${message?.id || ""}`;
 }
@@ -489,6 +465,7 @@ function renderMessages() {
   const lastSeenText = chat?.lastTimestamp
     ? formatLastSeen(chat.lastTimestamp)
     : "";
+  const contactName = chat ? displayName(chat) : fallbackTitle;
 
   elements.chatHeaderTitle.textContent = chat
     ? displayName(chat)
@@ -519,6 +496,9 @@ function renderMessages() {
         message.participant !== message.jid
           ? `<div class="message-participant">${escapeHtml(message.name || message.participant)}</div>`
           : "";
+      const senderName = !message.fromMe
+        ? `<div class="message-sender">${escapeHtml(contactName)}</div>`
+        : `<div class="message-sender message-sender-me">Você</div>`;
       const quoted = message.quoted?.text
         ? `<blockquote class="message-quote">${escapeHtml(message.quoted.text)}</blockquote>`
         : "";
@@ -535,6 +515,7 @@ function renderMessages() {
       return `
         <article class="message ${direction}" data-message-id="${escapeHtml(message.id)}">
           ${fromGroupParticipant}
+          ${!message.fromMe || message.participant ? senderName : ""}
           ${quoted}
           ${renderMessageBody(message)}
           ${reactions}
@@ -624,18 +605,6 @@ async function loadChats() {
   if (shouldRenderMessages) {
     renderMessages();
   }
-}
-
-async function loadEvents() {
-  if (!state.sessionId) {
-    return;
-  }
-
-  const data = await callApi(
-    `/session/${encodeURIComponent(state.sessionId)}/events?limit=50`,
-  );
-  state.events = Array.isArray(data.events) ? data.events : [];
-  renderEvents();
 }
 
 async function selectChat(jid) {
@@ -811,7 +780,6 @@ async function sendMessage(event) {
   }
 
   await loadChats();
-  await loadEvents();
   await selectChat(jid);
 }
 
@@ -830,7 +798,6 @@ function startHistoryRefresh() {
   state.historyRefreshInterval = setInterval(async () => {
     try {
       await loadChats();
-      await loadEvents();
       if (state.activeJid) {
         await selectChat(state.activeJid);
       }
@@ -866,7 +833,6 @@ function startConnectionPolling(sessionId) {
         stopConnectionPolling();
         showConnectedUI();
         await loadChats();
-        await loadEvents();
         if (state.activeJid) {
           await selectChat(state.activeJid);
         }
@@ -886,7 +852,6 @@ async function startSessionConnection(sessionId) {
 
   state.sessionId = sessionId;
   state.chats = [];
-  state.events = [];
   state.activeJid = null;
   state.activeMessages = [];
   state.activeMessagesSignature = "0";
@@ -908,7 +873,6 @@ async function startSessionConnection(sessionId) {
   if (connectionState.status === "connected") {
     showConnectedUI();
     await loadChats();
-    await loadEvents();
     startHistoryRefresh();
     return;
   }
@@ -918,7 +882,6 @@ async function startSessionConnection(sessionId) {
 
 async function boot() {
   renderMessages();
-  renderEvents();
   setConnectionVisual("idle");
   applyComposerType();
 
@@ -952,7 +915,6 @@ async function boot() {
   elements.refreshChatsBtn?.addEventListener("click", async () => {
     try {
       await loadChats();
-      await loadEvents();
       if (state.activeJid) {
         await selectChat(state.activeJid);
       }
