@@ -1,101 +1,189 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bot WhatsApp</title>
-  <link rel="stylesheet" href="/styles.css" />
-</head>
-<body>
-  <div class="scene-glow scene-glow-one" aria-hidden="true"></div>
-  <div class="scene-glow scene-glow-two" aria-hidden="true"></div>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Bot WhatsApp</title>
+        <link rel="stylesheet" href="/styles.css" />
+    </head>
+    <body>
+        <div class="scene-glow scene-glow-one" aria-hidden="true"></div>
+        <div class="scene-glow scene-glow-two" aria-hidden="true"></div>
 
-  <section id="connect-screen" class="connect-screen">
-    <div class="connect-card">
-      <p class="eyebrow">WhatsApp Bot Console</p>
-      <h1>Conectar ao WhatsApp</h1>
-      <p class="connect-subtitle">Use o mesmo fluxo do WhatsApp Web: gere e escaneie o QR code.</p>
+        <section id="connect-screen" class="connect-screen">
+            <div class="connect-card">
+                <p class="eyebrow">WhatsApp Bot Console</p>
+                <h1>Conectar ao WhatsApp</h1>
+                <p class="connect-subtitle">
+                    Use o mesmo fluxo do WhatsApp Web: gere e escaneie o QR
+                    code.
+                </p>
 
-      <div class="session-controls">
-        <label class="field">
-          <span>Identificador da sessao</span>
-          <input id="session-input" type="text" placeholder="session-id" value="default" />
-        </label>
-        <button id="connect-btn" type="button">Iniciar conexao</button>
-      </div>
+                <div class="session-controls">
+                    <label class="field">
+                        <span>Identificador da sessao</span>
+                        <input
+                            id="session-input"
+                            type="text"
+                            placeholder="session-id"
+                            value="default"
+                        />
+                    </label>
+                    <button id="connect-btn" type="button">
+                        Iniciar conexao
+                    </button>
+                </div>
 
-      <div class="connection-row">
-        <span id="connection-dot" class="connection-dot" aria-hidden="true"></span>
-        <p id="connection-status" class="connection-status">Aguardando conexao...</p>
-      </div>
+                <div class="connection-row">
+                    <span
+                        id="connection-dot"
+                        class="connection-dot"
+                        aria-hidden="true"
+                    ></span>
+                    <p id="connection-status" class="connection-status">
+                        Aguardando conexao...
+                    </p>
+                </div>
 
-      <div id="qr-wrapper" class="qr-wrapper hidden">
-        <img id="qr-image" alt="QR Code para conectar o WhatsApp" />
-      </div>
-    </div>
-  </section>
+                <div id="qr-wrapper" class="qr-wrapper hidden">
+                    <img id="qr-image" alt="QR Code para conectar o WhatsApp" />
+                </div>
+            </div>
+        </section>
 
-  <div id="app-shell" class="app-shell hidden">
-    <aside class="sidebar">
-      <header class="sidebar-top">
-        <div>
-          <p class="eyebrow sidebar-eyebrow">Painel</p>
-          <h1>Conversas</h1>
-          <p id="session-label" class="session-label">Sessao: -</p>
+        <div id="app-shell" class="app-shell hidden">
+            <aside class="sidebar">
+                <header class="sidebar-top">
+                    <div>
+                        <p class="eyebrow sidebar-eyebrow">Painel</p>
+                        <h1>Conversas</h1>
+                        <p id="session-label" class="session-label">
+                            Sessao: -
+                        </p>
+                    </div>
+                    <div class="sidebar-actions">
+                        <button
+                            id="refresh-chats-btn"
+                            class="icon-btn"
+                            title="Recarregar conversas"
+                        >
+                            <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path d="M23 4v6h-6M1 20v-6h6" />
+                                <path
+                                    d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
+                                />
+                            </svg>
+                        </button>
+                        <span
+                            id="connection-pill"
+                            class="connection-pill connection-pill-idle"
+                            >Aguardando</span
+                        >
+                    </div>
+                </header>
+
+                <div class="chat-search-wrap">
+                    <input
+                        id="chat-search-input"
+                        type="text"
+                        placeholder="Buscar por nome ou JID"
+                    />
+                </div>
+
+                <div id="chat-list" class="chat-list"></div>
+
+                <section class="event-panel">
+                    <div class="event-header">Eventos Baileys</div>
+                    <div id="event-list" class="event-list">
+                        <p class="empty-state">Sem eventos ainda.</p>
+                    </div>
+                </section>
+            </aside>
+
+            <main class="chat-panel">
+                <header id="chat-header" class="chat-header">
+                    <h2 id="chat-header-title">Selecione uma conversa</h2>
+                    <p id="chat-header-subtitle">
+                        Escolha um contato para abrir o historico.
+                    </p>
+                </header>
+
+                <section id="message-list" class="message-list"></section>
+
+                <form id="message-form" class="message-form">
+                    <input
+                        id="jid-input"
+                        type="text"
+                        placeholder="5511999999999@s.whatsapp.net"
+                    />
+
+                    <select id="message-type">
+                        <option value="text">Texto</option>
+                        <option value="media">Midia</option>
+                        <option value="sticker">Sticker</option>
+                        <option value="reaction">Reaction</option>
+                        <option value="interactive">Interativa</option>
+                    </select>
+
+                    <input
+                        id="message-input"
+                        type="text"
+                        placeholder="Digite uma mensagem"
+                    />
+
+                    <input
+                        id="media-url-input"
+                        class="hidden"
+                        type="text"
+                        placeholder="URL da midia (opcional se usar arquivo)"
+                    />
+                    <input id="media-file-input" class="hidden" type="file" />
+                    <input
+                        id="mime-input"
+                        class="hidden"
+                        type="text"
+                        placeholder="mimetype opcional (ex: image/png)"
+                    />
+                    <input
+                        id="file-name-input"
+                        class="hidden"
+                        type="text"
+                        placeholder="Nome do arquivo (documentos)"
+                    />
+
+                    <input
+                        id="reaction-message-id"
+                        class="hidden"
+                        type="text"
+                        placeholder="ID da mensagem alvo"
+                    />
+                    <input
+                        id="reaction-emoji"
+                        class="hidden"
+                        type="text"
+                        placeholder="Emoji (ex: 👍)"
+                        value="👍"
+                    />
+
+                    <textarea
+                        id="interactive-json"
+                        class="hidden"
+                        rows="3"
+                        placeholder='{"mode":"buttons","buttons":[{"id":"opt_1","text":"Opcao 1"}]}'
+                    ></textarea>
+
+                    <button id="send-btn" type="submit">Enviar</button>
+                </form>
+            </main>
         </div>
-        <span id="connection-pill" class="connection-pill connection-pill-idle">Aguardando</span>
-      </header>
 
-      <div class="chat-search-wrap">
-        <input id="chat-search-input" type="text" placeholder="Buscar por nome ou JID" />
-      </div>
-
-      <div id="chat-list" class="chat-list"></div>
-
-      <section class="event-panel">
-        <div class="event-header">Eventos Baileys</div>
-        <div id="event-list" class="event-list">
-          <p class="empty-state">Sem eventos ainda.</p>
-        </div>
-      </section>
-    </aside>
-
-    <main class="chat-panel">
-      <header id="chat-header" class="chat-header">
-        <h2 id="chat-header-title">Selecione uma conversa</h2>
-        <p id="chat-header-subtitle">Escolha um contato para abrir o historico.</p>
-      </header>
-
-      <section id="message-list" class="message-list"></section>
-
-      <form id="message-form" class="message-form">
-        <input id="jid-input" type="text" placeholder="5511999999999@s.whatsapp.net" />
-
-        <select id="message-type">
-          <option value="text">Texto</option>
-          <option value="media">Midia</option>
-          <option value="sticker">Sticker</option>
-          <option value="reaction">Reaction</option>
-          <option value="interactive">Interativa</option>
-        </select>
-
-        <input id="message-input" type="text" placeholder="Digite uma mensagem" />
-
-        <input id="media-url-input" class="hidden" type="text" placeholder="URL da midia (opcional se usar arquivo)" />
-        <input id="media-file-input" class="hidden" type="file" />
-        <input id="mime-input" class="hidden" type="text" placeholder="mimetype opcional (ex: image/png)" />
-        <input id="file-name-input" class="hidden" type="text" placeholder="Nome do arquivo (documentos)" />
-
-        <input id="reaction-message-id" class="hidden" type="text" placeholder="ID da mensagem alvo" />
-        <input id="reaction-emoji" class="hidden" type="text" placeholder="Emoji (ex: 👍)" value="👍" />
-
-        <textarea id="interactive-json" class="hidden" rows="3" placeholder='{"mode":"buttons","buttons":[{"id":"opt_1","text":"Opcao 1"}]}'></textarea>
-
-        <button id="send-btn" type="submit">Enviar</button>
-      </form>
-    </main>
-  </div>
-
-  <script type="module" src="/app.js"></script>
-</body>
+        <script type="module" src="/app.js"></script>
+    </body>
 </html>

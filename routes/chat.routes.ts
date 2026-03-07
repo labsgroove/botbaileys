@@ -16,6 +16,31 @@ router.get("/session/:id/chats", (req, res) => {
   return res.json({ chats: ChatStore.listChats(id) });
 });
 
+// INFORMACOES DO CONTATO
+router.get("/session/:id/contacts/:jid", (req, res) => {
+  const { id, jid } = req.params;
+  const session = WhatsAppService.getSession(id);
+
+  if (!session) {
+    return res.status(404).json({ error: "Sessao nao encontrada" });
+  }
+
+  const resolvedJid = ChatStore.resolveChatJid(id, jid) || jid;
+  const chats = ChatStore.listChats(id);
+  const contact = chats.find((c) => c.jid === resolvedJid);
+
+  if (!contact) {
+    return res.status(404).json({ error: "Contato nao encontrado" });
+  }
+
+  return res.json({
+    jid: resolvedJid,
+    name: contact.name,
+    pushName: contact.name,
+    lastSeen: contact.lastTimestamp,
+  });
+});
+
 // EVENTOS DA SESSÃO
 router.get("/session/:id/events", (req, res) => {
   const { id } = req.params;

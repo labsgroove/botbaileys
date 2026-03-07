@@ -1,166 +1,180 @@
-import { jidNormalizedUser } from '@whiskeysockets/baileys'
+import { jidNormalizedUser } from "@whiskeysockets/baileys";
 
-type MessageDirection = 'inbound' | 'outbound'
+type MessageDirection = "inbound" | "outbound";
 type MessageKind =
-  | 'text'
-  | 'image'
-  | 'video'
-  | 'audio'
-  | 'sticker'
-  | 'document'
-  | 'contact'
-  | 'location'
-  | 'poll'
-  | 'reaction'
-  | 'interactive'
-  | 'system'
-  | 'unknown'
+  | "text"
+  | "image"
+  | "video"
+  | "audio"
+  | "sticker"
+  | "document"
+  | "contact"
+  | "location"
+  | "poll"
+  | "reaction"
+  | "interactive"
+  | "system"
+  | "unknown";
 
-type MessageStatus = 'error' | 'pending' | 'server_ack' | 'delivery_ack' | 'read' | 'played' | 'unknown'
+type MessageStatus =
+  | "error"
+  | "pending"
+  | "server_ack"
+  | "delivery_ack"
+  | "read"
+  | "played"
+  | "unknown";
 
 type MessageMedia = {
-  kind: 'image' | 'video' | 'audio' | 'sticker' | 'document'
-  mimetype?: string
-  fileName?: string
-  caption?: string
-  seconds?: number
-  fileLength?: number
-  hasMedia?: boolean
-  mediaKeyTs?: number
-}
+  kind: "image" | "video" | "audio" | "sticker" | "document";
+  mimetype?: string;
+  fileName?: string;
+  caption?: string;
+  seconds?: number;
+  fileLength?: number;
+  hasMedia?: boolean;
+  mediaKeyTs?: number;
+};
 
 type MessageReaction = {
-  emoji: string
-  actor?: string
-  fromMe?: boolean
-  timestamp?: number
-}
+  emoji: string;
+  actor?: string;
+  fromMe?: boolean;
+  timestamp?: number;
+};
 
 type MessageInteractive = {
-  kind: 'buttons' | 'list' | 'template' | 'native' | 'response' | 'unknown'
-  title?: string
-  body?: string
-  footer?: string
-  selectedId?: string
-  selectedText?: string
-  options?: Array<{ id: string; title: string; description?: string }>
-}
+  kind: "buttons" | "list" | "template" | "native" | "response" | "unknown";
+  title?: string;
+  body?: string;
+  footer?: string;
+  selectedId?: string;
+  selectedText?: string;
+  options?: Array<{ id: string; title: string; description?: string }>;
+};
 
 type MessageQuote = {
-  id?: string
-  participant?: string
-  text?: string
-}
+  id?: string;
+  participant?: string;
+  text?: string;
+};
 
 export type ChatMessage = {
-  id: string
-  jid: string
-  text: string
-  direction: MessageDirection
-  fromMe: boolean
-  timestamp: number
-  type: MessageKind
-  status?: MessageStatus
-  rawType?: string
-  name?: string
-  participant?: string
-  isEdited?: boolean
-  isDeleted?: boolean
-  media?: MessageMedia
+  id: string;
+  jid: string;
+  text: string;
+  direction: MessageDirection;
+  fromMe: boolean;
+  timestamp: number;
+  type: MessageKind;
+  status?: MessageStatus;
+  rawType?: string;
+  name?: string;
+  participant?: string;
+  isEdited?: boolean;
+  isDeleted?: boolean;
+  media?: MessageMedia;
   reaction?: {
-    targetId?: string
-    emoji?: string
-  }
-  reactions?: MessageReaction[]
-  interactive?: MessageInteractive
-  quoted?: MessageQuote
-}
+    targetId?: string;
+    emoji?: string;
+  };
+  reactions?: MessageReaction[];
+  interactive?: MessageInteractive;
+  quoted?: MessageQuote;
+};
 
 type ChatMeta = {
-  jid: string
-  name?: string
-  unread: number
-  lastTimestamp: number
-  lastMessage: string
-  lastMessageType?: MessageKind
-}
+  jid: string;
+  name?: string;
+  unread: number;
+  lastTimestamp: number;
+  lastMessage: string;
+  lastMessageType?: MessageKind;
+};
 
 export type SessionEvent = {
-  id: string
-  name: string
-  timestamp: number
-  summary: string
-}
+  id: string;
+  name: string;
+  timestamp: number;
+  summary: string;
+};
 
 type SessionChats = {
-  messages: Record<string, ChatMessage[]>
-  meta: Record<string, ChatMeta>
-  aliases: Record<string, string>
-  events: SessionEvent[]
-}
+  messages: Record<string, ChatMessage[]>;
+  meta: Record<string, ChatMeta>;
+  aliases: Record<string, string>;
+  events: SessionEvent[];
+};
 
-const store: Record<string, SessionChats> = {}
+const store: Record<string, SessionChats> = {};
 
 function normalizeJid(jid: string): string {
-  const normalized = jidNormalizedUser(jid)
-  return normalized || String(jid || '').trim().toLowerCase()
+  const normalized = jidNormalizedUser(jid);
+  return (
+    normalized ||
+    String(jid || "")
+      .trim()
+      .toLowerCase()
+  );
 }
 
-function normalizeMessageStatus(status?: number | string | null): MessageStatus {
-  if (status === 'error') return 'error'
-  if (status === 'pending') return 'pending'
-  if (status === 'server_ack') return 'server_ack'
-  if (status === 'delivery_ack') return 'delivery_ack'
-  if (status === 'read') return 'read'
-  if (status === 'played') return 'played'
-  if (status === 'ERROR' || status === 0) return 'error'
-  if (status === 'PENDING' || status === 1) return 'pending'
-  if (status === 'SERVER_ACK' || status === 2) return 'server_ack'
-  if (status === 'DELIVERY_ACK' || status === 3) return 'delivery_ack'
-  if (status === 'READ' || status === 4) return 'read'
-  if (status === 'PLAYED' || status === 5) return 'played'
-  return 'unknown'
+function normalizeMessageStatus(
+  status?: number | string | null,
+): MessageStatus {
+  if (status === "error") return "error";
+  if (status === "pending") return "pending";
+  if (status === "server_ack") return "server_ack";
+  if (status === "delivery_ack") return "delivery_ack";
+  if (status === "read") return "read";
+  if (status === "played") return "played";
+  if (status === "ERROR" || status === 0) return "error";
+  if (status === "PENDING" || status === 1) return "pending";
+  if (status === "SERVER_ACK" || status === 2) return "server_ack";
+  if (status === "DELIVERY_ACK" || status === 3) return "delivery_ack";
+  if (status === "READ" || status === 4) return "read";
+  if (status === "PLAYED" || status === 5) return "played";
+  return "unknown";
 }
 
 function ensureSession(sessionId: string): SessionChats {
   if (!store[sessionId]) {
-    store[sessionId] = { messages: {}, meta: {}, aliases: {}, events: [] }
+    store[sessionId] = { messages: {}, meta: {}, aliases: {}, events: [] };
   }
 
-  return store[sessionId]
+  return store[sessionId];
 }
 
 function resolveJid(session: SessionChats, jid: string): string {
-  const normalized = normalizeJid(jid)
+  const normalized = normalizeJid(jid);
   if (!normalized) {
-    return ''
+    return "";
   }
 
-  let current = session.aliases[normalized] || normalized
-  const visited = [normalized]
+  let current = session.aliases[normalized] || normalized;
+  const visited = [normalized];
 
   while (session.aliases[current] && session.aliases[current] !== current) {
-    const next = session.aliases[current]
+    const next = session.aliases[current];
 
     if (!next || visited.includes(next)) {
-      break
+      break;
     }
 
-    visited.push(current)
-    current = next
+    visited.push(current);
+    current = next;
   }
 
   for (const alias of visited) {
-    session.aliases[alias] = current
+    session.aliases[alias] = current;
   }
 
-  session.aliases[current] = current
-  return current
+  session.aliases[current] = current;
+  return current;
 }
 
 function ensureChatByCanonical(session: SessionChats, jid: string) {
   if (!session.messages[jid]) {
-    session.messages[jid] = []
+    session.messages[jid] = [];
   }
 
   if (!session.meta[jid]) {
@@ -168,301 +182,350 @@ function ensureChatByCanonical(session: SessionChats, jid: string) {
       jid,
       unread: 0,
       lastTimestamp: 0,
-      lastMessage: ''
-    }
+      lastMessage: "",
+    };
   }
 
-  session.aliases[jid] = jid
+  session.aliases[jid] = jid;
 
   return {
     messages: session.messages[jid],
-    meta: session.meta[jid]
-  }
+    meta: session.meta[jid],
+  };
 }
 
 function ensureChat(session: SessionChats, jid: string) {
-  const canonicalJid = resolveJid(session, jid)
+  const canonicalJid = resolveJid(session, jid);
 
   if (!canonicalJid) {
-    return null
+    return null;
   }
 
   return {
     jid: canonicalJid,
-    ...ensureChatByCanonical(session, canonicalJid)
-  }
+    ...ensureChatByCanonical(session, canonicalJid),
+  };
 }
 
 function jidPriority(jid: string): number {
-  if (jid.endsWith('@s.whatsapp.net')) {
-    return 3
+  // Phone JID tem prioridade máxima (é o identificador principal)
+  if (jid.endsWith("@s.whatsapp.net")) {
+    return 3;
   }
 
-  if (jid.endsWith('@lid')) {
-    return 1
+  // LID tem prioridade secundária
+  if (jid.endsWith("@lid")) {
+    return 2;
   }
 
-  return 2
+  // Outros JIDs (grupos, broadcast, etc.)
+  return 1;
 }
 
 function isLidJid(jid: string) {
-  return jid.endsWith('@lid')
+  return jid.endsWith("@lid");
 }
 
 function isPhoneJid(jid: string) {
-  return jid.endsWith('@s.whatsapp.net')
+  return jid.endsWith("@s.whatsapp.net");
 }
 
-function canMergeAliases(firstJid: string, secondJid: string) {
+function extractPhoneBase(jid: string): string {
+  // Extrai a parte numérica do JID (ex: "5511999999999" de "5511999999999@s.whatsapp.net")
+  const match = jid.match(/^(\d+)/);
+  return match ? match[1] : jid;
+}
+
+function canMergeAliases(firstJid: string, secondJid: string): boolean {
   if (!firstJid || !secondJid || firstJid === secondJid) {
-    return true
+    return true;
   }
 
-  return (isLidJid(firstJid) && isPhoneJid(secondJid)) || (isPhoneJid(firstJid) && isLidJid(secondJid))
+  // LID e Phone JID do mesmo contato podem ser unificados
+  if (isLidJid(firstJid) && isPhoneJid(secondJid)) {
+    return true;
+  }
+
+  if (isPhoneJid(firstJid) && isLidJid(secondJid)) {
+    return true;
+  }
+
+  // Verifica se são o mesmo número com domínios diferentes
+  const firstBase = extractPhoneBase(firstJid);
+  const secondBase = extractPhoneBase(secondJid);
+
+  if (firstBase === secondBase && firstBase.length >= 10) {
+    return true;
+  }
+
+  return false;
 }
 
 function hasChat(session: SessionChats, jid: string) {
-  return !!session.messages[jid] || !!session.meta[jid]
+  return !!session.messages[jid] || !!session.meta[jid];
 }
 
 function chooseCanonicalJid(session: SessionChats, candidates: string[]) {
   return [...candidates].sort((firstJid, secondJid) => {
-    const firstHasChat = hasChat(session, firstJid) ? 1 : 0
-    const secondHasChat = hasChat(session, secondJid) ? 1 : 0
+    const firstHasChat = hasChat(session, firstJid) ? 1 : 0;
+    const secondHasChat = hasChat(session, secondJid) ? 1 : 0;
 
     if (firstHasChat !== secondHasChat) {
-      return secondHasChat - firstHasChat
+      return secondHasChat - firstHasChat;
     }
 
-    const firstPriority = jidPriority(firstJid)
-    const secondPriority = jidPriority(secondJid)
+    const firstPriority = jidPriority(firstJid);
+    const secondPriority = jidPriority(secondJid);
 
     if (firstPriority !== secondPriority) {
-      return secondPriority - firstPriority
+      return secondPriority - firstPriority;
     }
 
-    const firstTimestamp = session.meta[firstJid]?.lastTimestamp || 0
-    const secondTimestamp = session.meta[secondJid]?.lastTimestamp || 0
-    return secondTimestamp - firstTimestamp
-  })[0]
+    const firstTimestamp = session.meta[firstJid]?.lastTimestamp || 0;
+    const secondTimestamp = session.meta[secondJid]?.lastTimestamp || 0;
+    return secondTimestamp - firstTimestamp;
+  })[0];
 }
 
-function choosePreferredJid(session: SessionChats, firstJid: string, secondJid: string) {
-  const firstPriority = jidPriority(firstJid)
-  const secondPriority = jidPriority(secondJid)
+function choosePreferredJid(
+  session: SessionChats,
+  firstJid: string,
+  secondJid: string,
+) {
+  const firstPriority = jidPriority(firstJid);
+  const secondPriority = jidPriority(secondJid);
 
   if (firstPriority !== secondPriority) {
-    return firstPriority > secondPriority ? firstJid : secondJid
+    return firstPriority > secondPriority ? firstJid : secondJid;
   }
 
-  const firstTimestamp = session.meta[firstJid]?.lastTimestamp || 0
-  const secondTimestamp = session.meta[secondJid]?.lastTimestamp || 0
-  return firstTimestamp >= secondTimestamp ? firstJid : secondJid
+  const firstTimestamp = session.meta[firstJid]?.lastTimestamp || 0;
+  const secondTimestamp = session.meta[secondJid]?.lastTimestamp || 0;
+  return firstTimestamp >= secondTimestamp ? firstJid : secondJid;
 }
 
-function mergeChats(session: SessionChats, targetJid: string, sourceJid: string): string {
-  const resolvedTarget = resolveJid(session, targetJid)
-  const resolvedSource = resolveJid(session, sourceJid)
+function mergeChats(
+  session: SessionChats,
+  targetJid: string,
+  sourceJid: string,
+): string {
+  const resolvedTarget = resolveJid(session, targetJid);
+  const resolvedSource = resolveJid(session, sourceJid);
 
   if (!resolvedTarget) {
-    return resolvedSource
+    return resolvedSource;
   }
 
   if (!resolvedSource || resolvedTarget === resolvedSource) {
-    return resolvedTarget
+    return resolvedTarget;
   }
 
-  const target = ensureChatByCanonical(session, resolvedTarget)
-  const sourceMessages = session.messages[resolvedSource] || []
-  const sourceMeta = session.meta[resolvedSource]
-  const existingIds = new Set(target.messages.map((message) => message.id))
+  const target = ensureChatByCanonical(session, resolvedTarget);
+  const sourceMessages = session.messages[resolvedSource] || [];
+  const sourceMeta = session.meta[resolvedSource];
+  const existingIds = new Set(target.messages.map((message) => message.id));
 
   for (const message of sourceMessages) {
     if (existingIds.has(message.id)) {
-      continue
+      continue;
     }
 
     target.messages.push({
       ...message,
-      jid: resolvedTarget
-    })
+      jid: resolvedTarget,
+    });
 
-    existingIds.add(message.id)
+    existingIds.add(message.id);
   }
 
-  target.messages.sort((a, b) => a.timestamp - b.timestamp)
+  target.messages.sort((a, b) => a.timestamp - b.timestamp);
 
   if (sourceMeta) {
-    target.meta.unread += sourceMeta.unread
+    target.meta.unread += sourceMeta.unread;
 
     if (sourceMeta.lastTimestamp >= target.meta.lastTimestamp) {
-      target.meta.lastTimestamp = sourceMeta.lastTimestamp
-      target.meta.lastMessage = sourceMeta.lastMessage
-      target.meta.lastMessageType = sourceMeta.lastMessageType
+      target.meta.lastTimestamp = sourceMeta.lastTimestamp;
+      target.meta.lastMessage = sourceMeta.lastMessage;
+      target.meta.lastMessageType = sourceMeta.lastMessageType;
     }
 
     if (!target.meta.name && sourceMeta.name) {
-      target.meta.name = sourceMeta.name
+      target.meta.name = sourceMeta.name;
     }
   }
 
-  delete session.messages[resolvedSource]
-  delete session.meta[resolvedSource]
+  delete session.messages[resolvedSource];
+  delete session.meta[resolvedSource];
 
-  session.aliases[resolvedSource] = resolvedTarget
+  session.aliases[resolvedSource] = resolvedTarget;
 
   for (const [alias, canonical] of Object.entries(session.aliases)) {
     if (canonical === resolvedSource) {
-      session.aliases[alias] = resolvedTarget
+      session.aliases[alias] = resolvedTarget;
     }
   }
 
-  return resolvedTarget
+  return resolvedTarget;
 }
 
 function nextMessageId(jid: string, timestamp: number) {
-  return `${jid}-${timestamp}-${Math.random().toString(36).slice(2, 8)}`
+  return `${jid}-${timestamp}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function messagePreview(message: Pick<ChatMessage, 'type' | 'text' | 'media' | 'reaction' | 'interactive' | 'isDeleted'>): string {
+function messagePreview(
+  message: Pick<
+    ChatMessage,
+    "type" | "text" | "media" | "reaction" | "interactive" | "isDeleted"
+  >,
+): string {
   if (message.isDeleted) {
-    return '[Mensagem apagada]'
+    return "[Mensagem apagada]";
   }
 
-  if (message.type === 'reaction') {
-    return message.reaction?.emoji ? `[Reacao] ${message.reaction.emoji}` : '[Reacao]'
+  if (message.type === "reaction") {
+    return message.reaction?.emoji
+      ? `[Reacao] ${message.reaction.emoji}`
+      : "[Reacao]";
   }
 
-  if (message.type === 'interactive') {
-    const kind = message.interactive?.kind || 'interactive'
-    return `[Interativa ${kind}] ${message.text || ''}`.trim()
+  if (message.type === "interactive") {
+    const kind = message.interactive?.kind || "interactive";
+    return `[Interativa ${kind}] ${message.text || ""}`.trim();
   }
 
-  if (message.type === 'image') return message.text || '[Imagem]'
-  if (message.type === 'video') return message.text || '[Video]'
-  if (message.type === 'audio') return message.text || '[Audio]'
-  if (message.type === 'sticker') return '[Sticker]'
-  if (message.type === 'document') return message.media?.fileName ? `[Documento] ${message.media.fileName}` : '[Documento]'
-  if (message.type === 'contact') return '[Contato]'
-  if (message.type === 'location') return '[Localizacao]'
-  if (message.type === 'poll') return message.text || '[Enquete]'
-  if (message.type === 'system') return message.text || '[Sistema]'
+  if (message.type === "image") return message.text || "[Imagem]";
+  if (message.type === "video") return message.text || "[Video]";
+  if (message.type === "audio") return message.text || "[Audio]";
+  if (message.type === "sticker") return "[Sticker]";
+  if (message.type === "document")
+    return message.media?.fileName
+      ? `[Documento] ${message.media.fileName}`
+      : "[Documento]";
+  if (message.type === "contact") return "[Contato]";
+  if (message.type === "location") return "[Localizacao]";
+  if (message.type === "poll") return message.text || "[Enquete]";
+  if (message.type === "system") return message.text || "[Sistema]";
 
-  return message.text || '[Mensagem]'
+  return message.text || "[Mensagem]";
 }
 
 function mergeMessage(existing: ChatMessage, incoming: Partial<ChatMessage>) {
   if (incoming.text && incoming.text !== existing.text) {
-    existing.text = incoming.text
+    existing.text = incoming.text;
   }
 
   if (incoming.timestamp && incoming.timestamp > existing.timestamp) {
-    existing.timestamp = incoming.timestamp
+    existing.timestamp = incoming.timestamp;
   }
 
-  if (incoming.type && existing.type === 'unknown') {
-    existing.type = incoming.type
+  if (incoming.type && existing.type === "unknown") {
+    existing.type = incoming.type;
   }
 
   if (incoming.status) {
-    existing.status = incoming.status
+    existing.status = incoming.status;
   }
 
   if (incoming.rawType) {
-    existing.rawType = incoming.rawType
+    existing.rawType = incoming.rawType;
   }
 
   if (incoming.name) {
-    existing.name = incoming.name
+    existing.name = incoming.name;
   }
 
   if (incoming.participant) {
-    existing.participant = incoming.participant
+    existing.participant = incoming.participant;
   }
 
   if (incoming.isEdited) {
-    existing.isEdited = true
+    existing.isEdited = true;
   }
 
   if (incoming.isDeleted) {
-    existing.isDeleted = true
-    existing.text = '[Mensagem apagada]'
-    existing.type = 'system'
+    existing.isDeleted = true;
+    existing.text = "[Mensagem apagada]";
+    existing.type = "system";
   }
 
   if (incoming.media) {
     existing.media = {
       ...existing.media,
-      ...incoming.media
-    }
+      ...incoming.media,
+    };
   }
 
   if (incoming.interactive) {
     existing.interactive = {
       ...existing.interactive,
-      ...incoming.interactive
-    }
+      ...incoming.interactive,
+    };
   }
 
   if (incoming.quoted) {
     existing.quoted = {
       ...existing.quoted,
-      ...incoming.quoted
-    }
+      ...incoming.quoted,
+    };
   }
 
   if (incoming.reaction) {
     existing.reaction = {
       ...existing.reaction,
-      ...incoming.reaction
-    }
+      ...incoming.reaction,
+    };
   }
 }
 
 function upsertMessage(
   sessionId: string,
   payload: {
-    id?: string
-    jid: string
-    text?: string
-    fromMe: boolean
-    timestamp?: number
-    type?: MessageKind
-    status?: MessageStatus | number | string
-    rawType?: string
-    name?: string
-    participant?: string
-    media?: MessageMedia
+    id?: string;
+    jid: string;
+    text?: string;
+    fromMe: boolean;
+    timestamp?: number;
+    type?: MessageKind;
+    status?: MessageStatus | number | string;
+    rawType?: string;
+    name?: string;
+    participant?: string;
+    media?: MessageMedia;
     reaction?: {
-      targetId?: string
-      emoji?: string
-    }
-    interactive?: MessageInteractive
-    quoted?: MessageQuote
-    isEdited?: boolean
-    isDeleted?: boolean
+      targetId?: string;
+      emoji?: string;
+    };
+    interactive?: MessageInteractive;
+    quoted?: MessageQuote;
+    isEdited?: boolean;
+    isDeleted?: boolean;
   },
-  options: { countUnread?: boolean } = {}
+  options: { countUnread?: boolean } = {},
 ) {
-  const session = ensureSession(sessionId)
-  const chat = ensureChat(session, payload.jid)
+  const session = ensureSession(sessionId);
+  const chat = ensureChat(session, payload.jid);
 
   if (!chat) {
-    return
+    return;
   }
 
-  const normalizedTimestamp = Number.isFinite(payload.timestamp) ? Number(payload.timestamp) : Date.now()
-  const id = payload.id || nextMessageId(chat.jid, normalizedTimestamp)
-  const existing = chat.messages.find((message) => message.id === id)
-  const nextType = payload.type || 'unknown'
-  const normalizedStatus = normalizeMessageStatus(payload.status as number | string | null)
+  const normalizedTimestamp = Number.isFinite(payload.timestamp)
+    ? Number(payload.timestamp)
+    : Date.now();
+  const id = payload.id || nextMessageId(chat.jid, normalizedTimestamp);
+  const existing = chat.messages.find((message) => message.id === id);
+  const nextType = payload.type || "unknown";
+  const normalizedStatus = normalizeMessageStatus(
+    payload.status as number | string | null,
+  );
 
   if (existing) {
     mergeMessage(existing, {
       text: payload.text,
       timestamp: normalizedTimestamp,
       type: nextType,
-      status: normalizedStatus === 'unknown' ? existing.status : normalizedStatus,
+      status:
+        normalizedStatus === "unknown" ? existing.status : normalizedStatus,
       rawType: payload.rawType,
       name: payload.name,
       participant: payload.participant,
@@ -471,17 +534,17 @@ function upsertMessage(
       interactive: payload.interactive,
       quoted: payload.quoted,
       isEdited: payload.isEdited,
-      isDeleted: payload.isDeleted
-    })
+      isDeleted: payload.isDeleted,
+    });
   } else {
     chat.messages.push({
       id,
       jid: chat.jid,
-      text: payload.isDeleted ? '[Mensagem apagada]' : payload.text || '',
-      direction: payload.fromMe ? 'outbound' : 'inbound',
+      text: payload.isDeleted ? "[Mensagem apagada]" : payload.text || "",
+      direction: payload.fromMe ? "outbound" : "inbound",
       fromMe: payload.fromMe,
       timestamp: normalizedTimestamp,
-      type: payload.isDeleted ? 'system' : nextType,
+      type: payload.isDeleted ? "system" : nextType,
       status: normalizedStatus,
       rawType: payload.rawType,
       name: payload.name,
@@ -492,41 +555,41 @@ function upsertMessage(
       reaction: payload.reaction,
       interactive: payload.interactive,
       quoted: payload.quoted,
-      reactions: []
-    })
+      reactions: [],
+    });
   }
 
-  chat.messages.sort((a, b) => a.timestamp - b.timestamp)
+  chat.messages.sort((a, b) => a.timestamp - b.timestamp);
 
-  const currentMessage = chat.messages.find((message) => message.id === id)
+  const currentMessage = chat.messages.find((message) => message.id === id);
   if (!currentMessage) {
-    return
+    return;
   }
 
   if (!payload.fromMe && options.countUnread !== false) {
-    chat.meta.unread += 1
+    chat.meta.unread += 1;
   }
 
   if (normalizedTimestamp >= chat.meta.lastTimestamp) {
-    chat.meta.lastTimestamp = normalizedTimestamp
-    chat.meta.lastMessage = messagePreview(currentMessage)
-    chat.meta.lastMessageType = currentMessage.type
+    chat.meta.lastTimestamp = normalizedTimestamp;
+    chat.meta.lastMessage = messagePreview(currentMessage);
+    chat.meta.lastMessageType = currentMessage.type;
   }
 
-  const normalizedName = payload.name?.trim()
+  const normalizedName = payload.name?.trim();
   if (normalizedName) {
-    chat.meta.name = normalizedName
+    chat.meta.name = normalizedName;
   }
 }
 
 function findMessage(session: SessionChats, jid: string, messageId: string) {
-  const chat = ensureChat(session, jid)
+  const chat = ensureChat(session, jid);
 
   if (!chat) {
-    return undefined
+    return undefined;
   }
 
-  return chat.messages.find((message) => message.id === messageId)
+  return chat.messages.find((message) => message.id === messageId);
 }
 
 function addSessionEvent(session: SessionChats, name: string, summary: string) {
@@ -534,105 +597,124 @@ function addSessionEvent(session: SessionChats, name: string, summary: string) {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name,
     timestamp: Date.now(),
-    summary
-  })
+    summary,
+  });
 
   if (session.events.length > 250) {
-    session.events.length = 250
+    session.events.length = 250;
   }
 }
 
 export class ChatStore {
   static addEvent(sessionId: string, name: string, summary: string) {
-    const session = ensureSession(sessionId)
-    addSessionEvent(session, name, summary)
+    const session = ensureSession(sessionId);
+    addSessionEvent(session, name, summary);
   }
 
   static listEvents(sessionId: string, limit = 80) {
-    const session = ensureSession(sessionId)
-    const normalizedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(250, Math.floor(limit))) : 80
-    return session.events.slice(0, normalizedLimit)
+    const session = ensureSession(sessionId);
+    const normalizedLimit = Number.isFinite(limit)
+      ? Math.max(1, Math.min(250, Math.floor(limit)))
+      : 80;
+    return session.events.slice(0, normalizedLimit);
   }
 
   static upsertContact(
     sessionId: string,
     payload: {
-      id?: string
-      jid?: string
-      lid?: string
-      name?: string
-      notify?: string
-      verifiedName?: string
-    }
+      id?: string;
+      jid?: string;
+      lid?: string;
+      name?: string;
+      notify?: string;
+      verifiedName?: string;
+    },
   ) {
-    const session = ensureSession(sessionId)
-    const candidates = [payload.jid, payload.id, payload.lid]
-      .map((value) => (value ? normalizeJid(value) : ''))
-      .filter((value, index, all) => !!value && all.indexOf(value) === index)
+    const session = ensureSession(sessionId);
 
-    if (!candidates.length) {
-      return
+    // Coleta todos os JIDs candidatos e normaliza
+    const rawCandidates = [payload.jid, payload.id, payload.lid].filter(
+      Boolean,
+    ) as string[];
+    const normalizedCandidates = rawCandidates
+      .map((value) => normalizeJid(value))
+      .filter((value, index, all) => !!value && all.indexOf(value) === index);
+
+    if (!normalizedCandidates.length) {
+      return;
     }
 
+    // Resolve aliases existentes para encontrar o JID canônico atual
     const resolvedCandidates = Array.from(
-      new Set(candidates.map((jid) => resolveJid(session, jid)).filter((jid) => !!jid))
-    )
-    let canonicalJid = chooseCanonicalJid(session, resolvedCandidates)
+      new Set(
+        normalizedCandidates
+          .map((jid) => resolveJid(session, jid))
+          .filter((jid) => !!jid),
+      ),
+    );
+
+    // Seleciona o JID canônico preferido (prioriza phone JID e chats existentes)
+    let canonicalJid = chooseCanonicalJid(session, resolvedCandidates);
 
     if (!canonicalJid) {
-      return
+      // Fallback: usa o primeiro candidato normalizado
+      canonicalJid = normalizedCandidates[0];
+      session.aliases[canonicalJid] = canonicalJid;
     }
 
-    for (const candidate of resolvedCandidates) {
-      if (candidate === canonicalJid || !canMergeAliases(canonicalJid, candidate)) {
-        continue
+    // Unifica todos os aliases sob o mesmo JID canônico
+    for (const candidate of normalizedCandidates) {
+      if (candidate === canonicalJid) {
+        continue;
       }
 
-      if (hasChat(session, canonicalJid) || hasChat(session, candidate)) {
-        const preferredJid = choosePreferredJid(session, canonicalJid, candidate)
-        const otherJid = preferredJid === canonicalJid ? candidate : canonicalJid
-        canonicalJid = mergeChats(session, preferredJid, otherJid)
-        continue
+      // Verifica se pode unificar (LID com Phone JID do mesmo número)
+      if (!canMergeAliases(canonicalJid, candidate)) {
+        // Mantém separado se não puder unificar
+        session.aliases[candidate] = candidate;
+        continue;
       }
 
-      const preferredJid = choosePreferredJid(session, canonicalJid, candidate)
-      const otherJid = preferredJid === canonicalJid ? candidate : canonicalJid
-      canonicalJid = preferredJid
-      session.aliases[canonicalJid] = canonicalJid
-      session.aliases[otherJid] = canonicalJid
+      // Se ambos têm chats, faz o merge
+      if (hasChat(session, canonicalJid) && hasChat(session, candidate)) {
+        canonicalJid = mergeChats(session, canonicalJid, candidate);
+      } else if (hasChat(session, candidate)) {
+        // Move o chat existente para o canônico
+        canonicalJid = mergeChats(session, candidate, canonicalJid);
+      } else {
+        // Apenas cria o alias
+        session.aliases[candidate] = canonicalJid;
+      }
     }
 
-    for (const candidate of candidates) {
-      const resolved = resolveJid(session, candidate)
-
-      if (!resolved) {
-        continue
-      }
-
-      if (canMergeAliases(canonicalJid, resolved)) {
-        session.aliases[candidate] = canonicalJid
-        session.aliases[resolved] = canonicalJid
-        continue
-      }
-
-      session.aliases[candidate] = resolved
-      session.aliases[resolved] = resolved
+    // Garante que todos os aliases apontem para o canônico
+    for (const candidate of normalizedCandidates) {
+      session.aliases[candidate] = canonicalJid;
     }
 
+    // Seleciona o nome preferido (prioriza: name > notify > verifiedName)
     const preferredName = [payload.name, payload.notify, payload.verifiedName]
       .map((value) => value?.trim())
-      .find((value) => !!value)
+      .find((value) => !!value && value.length > 0);
 
     if (!preferredName) {
-      return
+      return;
     }
 
-    for (const resolvedJid of resolvedCandidates) {
-      const currentJid = resolveJid(session, resolvedJid)
-      const currentMeta = currentJid ? session.meta[currentJid] : undefined
-
-      if (currentMeta) {
-        currentMeta.name = preferredName
+    // Atualiza o nome em todos os JIDs relacionados
+    const allRelatedJids = new Set([canonicalJid, ...normalizedCandidates]);
+    for (const relatedJid of allRelatedJids) {
+      const resolved = resolveJid(session, relatedJid);
+      if (resolved && session.meta[resolved]) {
+        const currentName = session.meta[resolved].name;
+        // Prioriza nomes não vazios e mais descritivos
+        if (
+          !currentName ||
+          (preferredName.length > currentName.length &&
+            !currentName.match(/^\d+$/))
+        ) {
+          session.meta[resolved].name = preferredName;
+        }
       }
     }
   }
@@ -640,117 +722,117 @@ export class ChatStore {
   static addIncoming(
     sessionId: string,
     payload: {
-      id?: string
-      jid: string
-      text?: string
-      timestamp?: number
-      name?: string
-      participant?: string
-      type?: MessageKind
-      media?: MessageMedia
+      id?: string;
+      jid: string;
+      text?: string;
+      timestamp?: number;
+      name?: string;
+      participant?: string;
+      type?: MessageKind;
+      media?: MessageMedia;
       reaction?: {
-        targetId?: string
-        emoji?: string
-      }
-      interactive?: MessageInteractive
-      quoted?: MessageQuote
-      status?: MessageStatus | number | string
-      rawType?: string
-      isEdited?: boolean
-      isDeleted?: boolean
-    }
+        targetId?: string;
+        emoji?: string;
+      };
+      interactive?: MessageInteractive;
+      quoted?: MessageQuote;
+      status?: MessageStatus | number | string;
+      rawType?: string;
+      isEdited?: boolean;
+      isDeleted?: boolean;
+    },
   ) {
     upsertMessage(
       sessionId,
       {
         ...payload,
-        fromMe: false
+        fromMe: false,
       },
-      { countUnread: true }
-    )
+      { countUnread: true },
+    );
   }
 
   static addOutgoing(
     sessionId: string,
     payload: {
-      id?: string
-      jid: string
-      text?: string
-      timestamp?: number
-      name?: string
-      participant?: string
-      type?: MessageKind
-      media?: MessageMedia
+      id?: string;
+      jid: string;
+      text?: string;
+      timestamp?: number;
+      name?: string;
+      participant?: string;
+      type?: MessageKind;
+      media?: MessageMedia;
       reaction?: {
-        targetId?: string
-        emoji?: string
-      }
-      interactive?: MessageInteractive
-      quoted?: MessageQuote
-      status?: MessageStatus | number | string
-      rawType?: string
-      isEdited?: boolean
-      isDeleted?: boolean
-    }
+        targetId?: string;
+        emoji?: string;
+      };
+      interactive?: MessageInteractive;
+      quoted?: MessageQuote;
+      status?: MessageStatus | number | string;
+      rawType?: string;
+      isEdited?: boolean;
+      isDeleted?: boolean;
+    },
   ) {
     upsertMessage(
       sessionId,
       {
         ...payload,
-        fromMe: true
+        fromMe: true,
       },
-      { countUnread: false }
-    )
+      { countUnread: false },
+    );
   }
 
   static addHistory(
     sessionId: string,
     payload: {
-      id?: string
-      jid: string
-      text?: string
-      fromMe: boolean
-      timestamp: number
-      name?: string
-      participant?: string
-      type?: MessageKind
-      media?: MessageMedia
+      id?: string;
+      jid: string;
+      text?: string;
+      fromMe: boolean;
+      timestamp: number;
+      name?: string;
+      participant?: string;
+      type?: MessageKind;
+      media?: MessageMedia;
       reaction?: {
-        targetId?: string
-        emoji?: string
-      }
-      interactive?: MessageInteractive
-      quoted?: MessageQuote
-      status?: MessageStatus | number | string
-      rawType?: string
-      isEdited?: boolean
-      isDeleted?: boolean
-    }
+        targetId?: string;
+        emoji?: string;
+      };
+      interactive?: MessageInteractive;
+      quoted?: MessageQuote;
+      status?: MessageStatus | number | string;
+      rawType?: string;
+      isEdited?: boolean;
+      isDeleted?: boolean;
+    },
   ) {
-    upsertMessage(sessionId, payload, { countUnread: false })
+    upsertMessage(sessionId, payload, { countUnread: false });
   }
 
   static updateMessage(
     sessionId: string,
     payload: {
-      id: string
-      jid: string
-      text?: string
-      timestamp?: number
-      status?: MessageStatus | number | string
-      type?: MessageKind
-      rawType?: string
-      media?: MessageMedia
-      interactive?: MessageInteractive
-      quoted?: MessageQuote
-      isEdited?: boolean
-      isDeleted?: boolean
-      participant?: string
-      name?: string
-    }
+      id: string;
+      jid: string;
+      text?: string;
+      timestamp?: number;
+      status?: MessageStatus | number | string;
+      type?: MessageKind;
+      rawType?: string;
+      media?: MessageMedia;
+      interactive?: MessageInteractive;
+      quoted?: MessageQuote;
+      isEdited?: boolean;
+      isDeleted?: boolean;
+      participant?: string;
+      name?: string;
+    },
   ) {
-    const session = ensureSession(sessionId)
-    const message = findMessage(session, payload.jid, payload.id)
+    const session = ensureSession(sessionId);
+    const message = findMessage(session, payload.jid, payload.id);
 
     if (!message) {
       upsertMessage(
@@ -758,11 +840,11 @@ export class ChatStore {
         {
           id: payload.id,
           jid: payload.jid,
-          text: payload.text || '',
+          text: payload.text || "",
           fromMe: false,
           timestamp: payload.timestamp || Date.now(),
           status: payload.status,
-          type: payload.type || 'unknown',
+          type: payload.type || "unknown",
           rawType: payload.rawType,
           media: payload.media,
           interactive: payload.interactive,
@@ -770,12 +852,12 @@ export class ChatStore {
           isEdited: payload.isEdited,
           isDeleted: payload.isDeleted,
           participant: payload.participant,
-          name: payload.name
+          name: payload.name,
         },
-        { countUnread: false }
-      )
+        { countUnread: false },
+      );
 
-      return
+      return;
     }
 
     mergeMessage(message, {
@@ -790,158 +872,171 @@ export class ChatStore {
       isEdited: payload.isEdited,
       isDeleted: payload.isDeleted,
       participant: payload.participant,
-      name: payload.name
-    })
+      name: payload.name,
+    });
 
-    const chat = ensureChat(session, payload.jid)
+    const chat = ensureChat(session, payload.jid);
     if (!chat) {
-      return
+      return;
     }
 
     if (message.timestamp >= chat.meta.lastTimestamp) {
-      chat.meta.lastTimestamp = message.timestamp
-      chat.meta.lastMessage = messagePreview(message)
-      chat.meta.lastMessageType = message.type
+      chat.meta.lastTimestamp = message.timestamp;
+      chat.meta.lastMessage = messagePreview(message);
+      chat.meta.lastMessageType = message.type;
     }
   }
 
   static applyReaction(
     sessionId: string,
     payload: {
-      jid: string
-      messageId: string
-      emoji?: string
-      actor?: string
-      fromMe?: boolean
-      timestamp?: number
-    }
+      jid: string;
+      messageId: string;
+      emoji?: string;
+      actor?: string;
+      fromMe?: boolean;
+      timestamp?: number;
+    },
   ) {
-    const session = ensureSession(sessionId)
-    const target = findMessage(session, payload.jid, payload.messageId)
+    const session = ensureSession(sessionId);
+    const target = findMessage(session, payload.jid, payload.messageId);
 
     if (!target) {
-      return
+      return;
     }
 
     if (!target.reactions) {
-      target.reactions = []
+      target.reactions = [];
     }
 
-    const actorKey = payload.actor || (payload.fromMe ? 'me' : 'unknown')
-    const existingIndex = target.reactions.findIndex((reaction) => (reaction.actor || 'unknown') === actorKey)
+    const actorKey = payload.actor || (payload.fromMe ? "me" : "unknown");
+    const existingIndex = target.reactions.findIndex(
+      (reaction) => (reaction.actor || "unknown") === actorKey,
+    );
 
     if (!payload.emoji) {
       if (existingIndex >= 0) {
-        target.reactions.splice(existingIndex, 1)
+        target.reactions.splice(existingIndex, 1);
       }
-      return
+      return;
     }
 
     const nextReaction: MessageReaction = {
       emoji: payload.emoji,
       actor: payload.actor,
       fromMe: payload.fromMe,
-      timestamp: payload.timestamp
-    }
+      timestamp: payload.timestamp,
+    };
 
     if (existingIndex >= 0) {
-      target.reactions[existingIndex] = nextReaction
+      target.reactions[existingIndex] = nextReaction;
     } else {
-      target.reactions.push(nextReaction)
+      target.reactions.push(nextReaction);
     }
   }
 
-  static markMessageDeleted(sessionId: string, jid: string, messageId: string, timestamp = Date.now()) {
+  static markMessageDeleted(
+    sessionId: string,
+    jid: string,
+    messageId: string,
+    timestamp = Date.now(),
+  ) {
     this.updateMessage(sessionId, {
       id: messageId,
       jid,
       timestamp,
       isDeleted: true,
-      type: 'system',
-      text: '[Mensagem apagada]'
-    })
+      type: "system",
+      text: "[Mensagem apagada]",
+    });
   }
 
   static upsertHistoryChat(
     sessionId: string,
     payload: {
-      jid: string
-      name?: string
-      unread?: number
-      lastTimestamp?: number
-      lastMessage?: string
-      lastMessageType?: MessageKind
-    }
+      jid: string;
+      name?: string;
+      unread?: number;
+      lastTimestamp?: number;
+      lastMessage?: string;
+      lastMessageType?: MessageKind;
+    },
   ) {
-    const session = ensureSession(sessionId)
-    const chat = ensureChat(session, payload.jid)
+    const session = ensureSession(sessionId);
+    const chat = ensureChat(session, payload.jid);
 
     if (!chat) {
-      return
+      return;
     }
 
-    const normalizedName = payload.name?.trim()
+    const normalizedName = payload.name?.trim();
     if (normalizedName) {
-      chat.meta.name = normalizedName
+      chat.meta.name = normalizedName;
     }
 
-    const normalizedUnread = Number(payload.unread)
+    const normalizedUnread = Number(payload.unread);
     if (Number.isFinite(normalizedUnread) && normalizedUnread >= 0) {
-      chat.meta.unread = Math.max(chat.meta.unread, Math.floor(normalizedUnread))
+      chat.meta.unread = Math.max(
+        chat.meta.unread,
+        Math.floor(normalizedUnread),
+      );
     }
 
-    const normalizedTimestamp = Number(payload.lastTimestamp)
-    if (Number.isFinite(normalizedTimestamp) && normalizedTimestamp > chat.meta.lastTimestamp) {
-      chat.meta.lastTimestamp = normalizedTimestamp
+    const normalizedTimestamp = Number(payload.lastTimestamp);
+    if (
+      Number.isFinite(normalizedTimestamp) &&
+      normalizedTimestamp > chat.meta.lastTimestamp
+    ) {
+      chat.meta.lastTimestamp = normalizedTimestamp;
     }
 
-    const normalizedLastMessage = payload.lastMessage?.trim()
+    const normalizedLastMessage = payload.lastMessage?.trim();
     if (normalizedLastMessage) {
-      chat.meta.lastMessage = normalizedLastMessage
+      chat.meta.lastMessage = normalizedLastMessage;
     }
 
     if (payload.lastMessageType) {
-      chat.meta.lastMessageType = payload.lastMessageType
+      chat.meta.lastMessageType = payload.lastMessageType;
     }
   }
 
   static resolveChatJid(sessionId: string, jid: string) {
-    const session = ensureSession(sessionId)
-    return resolveJid(session, jid)
+    const session = ensureSession(sessionId);
+    return resolveJid(session, jid);
   }
 
   static listChats(sessionId: string) {
-    const session = ensureSession(sessionId)
+    const session = ensureSession(sessionId);
     return Object.values(session.meta)
       .map((chat) => ({ ...chat }))
-      .sort((a, b) => b.lastTimestamp - a.lastTimestamp)
+      .sort((a, b) => b.lastTimestamp - a.lastTimestamp);
   }
 
   static getMessage(sessionId: string, jid: string, messageId: string) {
-    const session = ensureSession(sessionId)
-    const message = findMessage(session, jid, messageId)
-    return message ? { ...message } : undefined
+    const session = ensureSession(sessionId);
+    const message = findMessage(session, jid, messageId);
+    return message ? { ...message } : undefined;
   }
 
   static getMessages(sessionId: string, jid: string) {
-    const session = ensureSession(sessionId)
-    const chat = ensureChat(session, jid)
+    const session = ensureSession(sessionId);
+    const chat = ensureChat(session, jid);
 
     if (!chat) {
-      return []
+      return [];
     }
 
-    return [...chat.messages].sort((a, b) => a.timestamp - b.timestamp)
+    return [...chat.messages].sort((a, b) => a.timestamp - b.timestamp);
   }
 
   static markAsRead(sessionId: string, jid: string) {
-    const session = ensureSession(sessionId)
-    const chat = ensureChat(session, jid)
+    const session = ensureSession(sessionId);
+    const chat = ensureChat(session, jid);
 
     if (!chat) {
-      return
+      return;
     }
 
-    chat.meta.unread = 0
+    chat.meta.unread = 0;
   }
 }
