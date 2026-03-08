@@ -1,14 +1,88 @@
 import axios from 'axios'
-import { env } from '../../config/env'
+import { AIConfig, AIConfigService } from '../ai/ai.config.service'
 
 export class LLMService {
-  static async ask(messages: any[]) {
-    const response = await axios.post(env.LM_STUDIO_URL, {
-      model: env.MODEL,
+  private static config: AIConfig | null = null
+
+  private static async getConfig(): Promise<AIConfig> {
+    if (!this.config) {
+      this.config = await AIConfigService.loadConfig()
+    }
+    return this.config
+  }
+
+  static async ask(messages: any[]): Promise<string> {
+    const config = await this.getConfig()
+
+    if (config.provider === 'google-ai' && config.googleAI) {
+      return this.askGoogleAI(messages, config.googleAI)
+    } else {
+      return this.askLMStudio(messages, config.lmStudio)
+    }
+  }
+
+  private static async askGoogleAI(messages: any[], config: AIConfig['googleAI']): Promise<string> {
+    if (!config) {
+      throw new Error('Configuração do Google AI não encontrada')
+    }
+
+    try {
+      // Google AI não suporta role 'system', então tratamos o prompt como primeira mensagem
+      const googleAIMessages = messages
+        .filter(msg => msg.role !== 'system') // Remove mensagens system
+        .map(msg => ({
+          parts: [{ text: msg.content }]
+        }));
+
+      // Se não houver mensagens (apenas system), cria uma mensagem inicial
+      if (googleAIMessages.length === 0) {
+        const systemMessage = messages.find(msg => msg.role === 'system');
+        if (systemMessage) {
+          googleAIMessages.push({
+            parts: [{ text: systemMessage.content }]
+          });
+        }
+      }
+
+      const response = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`,
+        {
+          contents: googleAIMessages,
+          generationConfig: {
+            temperature: config.temperature,
+            maxOutputTokens: config.maxTokens
+          }
+        },
+        {
+          timeout: 30000,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+
+      return response.data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Sem resposta'
+    } catch (error) {
+      console.error('Google AI API error:', error)
+      throw new Error('Erro ao comunicar com Google AI')
+    }
+  }
+
+  private static async askLMStudio(messages: any[], config: AIConfig['lmStudio']): Promise<string> {
+    if (!config) {
+      throw new Error('Configuração do LM Studio não encontrada')
+    }
+
+    const response = await axios.post(config.url, {
+      model: config.model,
       messages,
-      temperature: 0.7
+      temperature: config.temperature
     })
 
     return response.data.choices[0].message.content
+  }
+
+  static async reloadConfig(): Promise<void> {
+    this.config = await AIConfigService.loadConfig()
   }
 }

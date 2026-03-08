@@ -15,6 +15,7 @@ import type {
 } from "../../types/message.types";
 import { normalizeJid } from "../../utils/message.utils";
 import { MessageSender } from "../../utils/message.sender";
+import { AIConversationService } from "../ai/ai.conversation.service";
 
 const sessions: Map<string, WASocket> = new Map();
 const reconnecting: Set<string> = new Set();
@@ -198,6 +199,12 @@ export class WhatsAppService {
           isEdited: message.isEdited,
           isDeleted: message.isDeleted,
         });
+
+        // Processa mensagem com IA se estiver habilitado
+        if (message.text && message.text.trim().length > 0) {
+          AIConversationService.processIncomingMessage(sessionId, message.jid, message.text)
+            .catch(error => console.error('Error in AI processing:', error));
+        }
       },
       onHistoryMessage: (message) => {
         cacheRawMessage(sessionId, message.jid, message.id, message.raw);

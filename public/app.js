@@ -34,6 +34,8 @@ const elements = {
   voiceBtn: document.getElementById("voice-btn"),
   sendBtn: document.getElementById("send-btn"),
   businessToggleBtn: document.getElementById("business-toggle-btn"),
+  aiConfigBtn: document.getElementById("ai-config-btn"),
+  aiToggleBtn: document.getElementById("ai-toggle-btn"),
   // Hidden inputs
   jidInput: document.getElementById("jid-input"),
   messageType: document.getElementById("message-type"),
@@ -49,6 +51,24 @@ const elements = {
   emojiPicker: document.getElementById("emoji-picker"),
   voiceRecorder: document.getElementById("voice-recorder"),
   businessOptions: document.getElementById("business-options"),
+  // AI Config Modal
+  aiConfigModal: document.getElementById("ai-config-modal"),
+  closeAiConfigBtn: document.getElementById("close-ai-config-btn"),
+  saveAiConfigBtn: document.getElementById("save-ai-config-btn"),
+  cancelAiConfigBtn: document.getElementById("cancel-ai-config-btn"),
+  testGoogleAiBtn: document.getElementById("test-google-ai-btn"),
+  configStatus: document.getElementById("config-status"),
+  // AI Config inputs
+  aiProviderRadios: document.querySelectorAll('input[name="ai-provider"]'),
+  lmStudioConfig: document.getElementById("lm-studio-config"),
+  googleAiConfig: document.getElementById("google-ai-config"),
+  lmStudioUrl: document.getElementById("lm-studio-url"),
+  lmStudioModel: document.getElementById("lm-studio-model"),
+  lmStudioTemperature: document.getElementById("lm-studio-temperature"),
+  googleAiApiKey: document.getElementById("google-ai-api-key"),
+  googleAiModel: document.getElementById("google-ai-model"),
+  googleAiTemperature: document.getElementById("google-ai-temperature"),
+  googleAiMaxTokens: document.getElementById("google-ai-max-tokens"),
   // Attach options
   closeAttachBtn: document.getElementById("close-attach-btn"),
   attachImageBtn: document.getElementById("attach-image-btn"),
@@ -1201,10 +1221,211 @@ async function startSessionConnection(sessionId) {
     showConnectedUI();
     await loadChats();
     startHistoryRefresh();
+    await loadAIStatus(); // Carrega status da IA
     return;
   }
 
   startConnectionPolling(sessionId);
+}
+
+// AI Configuration Modal Functions
+function showAiConfigModal() {
+  loadAiConfig();
+  elements.aiConfigModal.classList.remove('hidden');
+}
+
+function hideAiConfigModal() {
+  elements.aiConfigModal.classList.add('hidden');
+  hideConfigStatus();
+}
+
+function showConfigStatus(message, type = 'success') {
+  elements.configStatus.textContent = message;
+  elements.configStatus.className = `config-status ${type}`;
+}
+
+function hideConfigStatus() {
+  elements.configStatus.className = 'config-status';
+}
+
+function switchAiProvider(provider) {
+  if (provider === 'google-ai') {
+    elements.lmStudioConfig.classList.add('hidden');
+    elements.googleAiConfig.classList.remove('hidden');
+  } else {
+    elements.lmStudioConfig.classList.remove('hidden');
+    elements.googleAiConfig.classList.add('hidden');
+  }
+}
+
+async function loadAiConfig() {
+  try {
+    const response = await fetch('/api/ai/config');
+    const config = await response.json();
+    
+    // Set provider
+    const providerRadio = document.querySelector(`input[name="ai-provider"][value="${config.provider}"]`);
+    if (providerRadio) {
+      providerRadio.checked = true;
+      switchAiProvider(config.provider);
+    }
+    
+    // Load LM Studio config
+    if (config.lmStudio) {
+      elements.lmStudioUrl.value = config.lmStudio.url || '';
+      elements.lmStudioModel.value = config.lmStudio.model || '';
+      elements.lmStudioTemperature.value = config.lmStudio.temperature || 0.7;
+    }
+    
+    // Load Google AI config
+    if (config.googleAI) {
+      elements.googleAiApiKey.value = config.googleAI.apiKey && config.googleAI.apiKey !== '***' ? config.googleAI.apiKey : '';
+      elements.googleAiModel.value = config.googleAI.model || 'gemini-2.5-flash';
+      elements.googleAiTemperature.value = config.googleAI.temperature || 0.7;
+      elements.googleAiMaxTokens.value = config.googleAI.maxTokens || 2048;
+    }
+  } catch (error) {
+    console.error('Error loading AI config:', error);
+    showConfigStatus('Erro ao carregar configuração', 'error');
+  }
+}
+
+async function saveAiConfig() {
+  try {
+    const provider = document.querySelector('input[name="ai-provider"]:checked').value;
+    
+    const config = {
+      provider,
+      lmStudio: provider === 'lm-studio' ? {
+        url: elements.lmStudioUrl.value.trim(),
+        model: elements.lmStudioModel.value.trim(),
+        temperature: parseFloat(elements.lmStudioTemperature.value)
+      } : undefined,
+      googleAI: provider === 'google-ai' ? {
+        apiKey: elements.googleAiApiKey.value.trim(),
+        model: elements.googleAiModel.value,
+        temperature: parseFloat(elements.googleAiTemperature.value),
+        maxTokens: parseInt(elements.googleAiMaxTokens.value)
+      } : undefined
+    };
+    
+    const response = await fetch('/api/ai/config', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(config)
+    });
+    
+    if (response.ok) {
+      showConfigStatus('Configuração salva com sucesso!', 'success');
+      setTimeout(hideAiConfigModal, 2000);
+    } else {
+      const error = await response.json();
+      showConfigStatus(error.error || 'Erro ao salvar configuração', 'error');
+    }
+  } catch (error) {
+    console.error('Error saving AI config:', error);
+    showConfigStatus('Erro ao salvar configuração', 'error');
+  }
+}
+
+async function testGoogleAiConnection() {
+  const apiKey = elements.googleAiApiKey.value.trim();
+  const model = elements.googleAiModel.value;
+  
+  if (!apiKey) {
+    showConfigStatus('API Key é obrigatória', 'error');
+    return;
+  }
+  
+  try {
+    elements.testGoogleAiBtn.disabled = true;
+    elements.testGoogleAiBtn.textContent = 'Testando...';
+    hideConfigStatus();
+    
+    const response = await fetch('/api/ai/test-google-ai', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ apiKey, model })
+    });
+    
+    const result = await response.json();
+    
+    if (result.valid) {
+      showConfigStatus('✅ Conexão com Google AI bem-sucedida!', 'success');
+    } else {
+      showConfigStatus('❌ Falha na conexão. Verifique se a API Key está correta.', 'error');
+    }
+  } catch (error) {
+    console.error('Error testing Google AI:', error);
+    showConfigStatus('❌ Erro ao testar conexão. Tente novamente.', 'error');
+  } finally {
+    elements.testGoogleAiBtn.disabled = false;
+    elements.testGoogleAiBtn.textContent = 'Testar';
+  }
+}
+
+// AI Conversation Functions
+async function loadAIStatus() {
+  if (!state.sessionId) return;
+  
+  try {
+    const response = await fetch(`/api/ai/status/${encodeURIComponent(state.sessionId)}`);
+    const status = await response.json();
+    updateAIToggleButton(status.enabled);
+  } catch (error) {
+    console.error('Error loading AI status:', error);
+  }
+}
+
+async function toggleAI() {
+  if (!state.sessionId) {
+    alert('Conecte-se ao WhatsApp primeiro');
+    return;
+  }
+  
+  try {
+    elements.aiToggleBtn.disabled = true;
+    
+    const response = await fetch(`/api/ai/toggle/${encodeURIComponent(state.sessionId)}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok) {
+      updateAIToggleButton(result.enabled);
+      showNotification(result.message, result.enabled ? 'success' : 'info');
+    } else {
+      showNotification('Erro ao alterar status da IA', 'error');
+    }
+  } catch (error) {
+    console.error('Error toggling AI:', error);
+    showNotification('Erro ao alterar status da IA', 'error');
+  } finally {
+    elements.aiToggleBtn.disabled = false;
+  }
+}
+
+function updateAIToggleButton(enabled) {
+  if (enabled) {
+    elements.aiToggleBtn.classList.add('ai-active');
+    elements.aiToggleBtn.title = 'Desligar IA';
+  } else {
+    elements.aiToggleBtn.classList.remove('ai-active');
+    elements.aiToggleBtn.title = 'Ligar IA';
+  }
+}
+
+function showNotification(message, type = 'info') {
+  // Implementar notificação visual
+  console.log(`[${type.toUpperCase()}] ${message}`);
 }
 
 async function boot() {
@@ -1357,9 +1578,26 @@ async function boot() {
     }
   });
 
+  // AI Configuration Modal
+  elements.aiConfigBtn.addEventListener("click", showAiConfigModal);
+  elements.closeAiConfigBtn.addEventListener("click", hideAiConfigModal);
+  elements.cancelAiConfigBtn.addEventListener("click", hideAiConfigModal);
+  elements.saveAiConfigBtn.addEventListener("click", saveAiConfig);
+  elements.testGoogleAiBtn.addEventListener("click", testGoogleAiConnection);
+
+  // AI Toggle
+  elements.aiToggleBtn.addEventListener("click", toggleAI);
+
+  // AI Provider switch
+  elements.aiProviderRadios.forEach(radio => {
+    radio.addEventListener("change", (e) => {
+      switchAiProvider(e.target.value);
+    });
+  });
+
   // Close menus when clicking outside
   document.addEventListener("click", (event) => {
-    if (!event.target.closest('.message-composer')) {
+    if (!event.target.closest('.message-composer') && !event.target.closest('.modal')) {
       hideAllMenus();
     }
   });

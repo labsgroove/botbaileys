@@ -23,6 +23,13 @@ export class ConversationService {
   }
 
   static addMessage(jid: string, role: Message['role'], content: string) {
+    // Garante que a conversa existe
+    if (!conversations[jid]) {
+      conversations[jid] = [
+        { role: 'system', content: SYSTEM_PROMPT }
+      ]
+    }
+    
     conversations[jid].push({ role, content })
 
     // Limita histórico (evita estourar contexto)
