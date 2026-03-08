@@ -1,103 +1,21 @@
 import { jidNormalizedUser } from "@whiskeysockets/baileys";
-
-type MessageDirection = "inbound" | "outbound";
-type MessageKind =
-  | "text"
-  | "image"
-  | "video"
-  | "audio"
-  | "sticker"
-  | "document"
-  | "contact"
-  | "location"
-  | "poll"
-  | "reaction"
-  | "interactive"
-  | "system"
-  | "unknown";
-
-type MessageStatus =
-  | "error"
-  | "pending"
-  | "server_ack"
-  | "delivery_ack"
-  | "read"
-  | "played"
-  | "unknown";
-
-type MessageMedia = {
-  kind: "image" | "video" | "audio" | "sticker" | "document";
-  mimetype?: string;
-  fileName?: string;
-  caption?: string;
-  seconds?: number;
-  fileLength?: number;
-  hasMedia?: boolean;
-  mediaKeyTs?: number;
-};
-
-type MessageReaction = {
-  emoji: string;
-  actor?: string;
-  fromMe?: boolean;
-  timestamp?: number;
-};
-
-type MessageInteractive = {
-  kind: "buttons" | "list" | "template" | "native" | "response" | "unknown";
-  title?: string;
-  body?: string;
-  footer?: string;
-  selectedId?: string;
-  selectedText?: string;
-  options?: Array<{ id: string; title: string; description?: string }>;
-};
-
-type MessageQuote = {
-  id?: string;
-  participant?: string;
-  text?: string;
-};
-
-export type ChatMessage = {
-  id: string;
-  jid: string;
-  text: string;
-  direction: MessageDirection;
-  fromMe: boolean;
-  timestamp: number;
-  type: MessageKind;
-  status?: MessageStatus;
-  rawType?: string;
-  name?: string;
-  participant?: string;
-  isEdited?: boolean;
-  isDeleted?: boolean;
-  media?: MessageMedia;
-  reaction?: {
-    targetId?: string;
-    emoji?: string;
-  };
-  reactions?: MessageReaction[];
-  interactive?: MessageInteractive;
-  quoted?: MessageQuote;
-};
-
-type ChatMeta = {
-  jid: string;
-  name?: string;
-  unread: number;
-  lastTimestamp: number;
-  lastMessage: string;
-  lastMessageType?: MessageKind;
-};
-
-export type SessionEvent = {
-  id: string;
-  name: string;
-  timestamp: number;
-  summary: string;
-};
+import type {
+  ChatMessage,
+  MessageKind,
+  MessageStatus,
+  MessageMedia,
+  MessageReactionFull,
+  MessageInteractive,
+  MessageQuote,
+  ChatMeta,
+  SessionEvent,
+  ContactUpdate
+} from "../../types/message.types";
+import { 
+  normalizeJid as normalizeJidUtil,
+  normalizeMessageStatus,
+  messagePreview
+} from "../../utils/message.utils";
 
 type SessionChats = {
   messages: Record<string, ChatMessage[]>;
@@ -109,31 +27,13 @@ type SessionChats = {
 const store: Record<string, SessionChats> = {};
 
 function normalizeJid(jid: string): string {
-  const normalized = jidNormalizedUser(jid);
+  const normalized = normalizeJidUtil(jid);
   return (
     normalized ||
     String(jid || "")
       .trim()
       .toLowerCase()
   );
-}
-
-function normalizeMessageStatus(
-  status?: number | string | null,
-): MessageStatus {
-  if (status === "error") return "error";
-  if (status === "pending") return "pending";
-  if (status === "server_ack") return "server_ack";
-  if (status === "delivery_ack") return "delivery_ack";
-  if (status === "read") return "read";
-  if (status === "played") return "played";
-  if (status === "ERROR" || status === 0) return "error";
-  if (status === "PENDING" || status === 1) return "pending";
-  if (status === "SERVER_ACK" || status === 2) return "server_ack";
-  if (status === "DELIVERY_ACK" || status === 3) return "delivery_ack";
-  if (status === "READ" || status === 4) return "read";
-  if (status === "PLAYED" || status === 5) return "played";
-  return "unknown";
 }
 
 function ensureSession(sessionId: string): SessionChats {
@@ -372,42 +272,6 @@ function nextMessageId(jid: string, timestamp: number) {
   return `${jid}-${timestamp}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function messagePreview(
-  message: Pick<
-    ChatMessage,
-    "type" | "text" | "media" | "reaction" | "interactive" | "isDeleted"
-  >,
-): string {
-  if (message.isDeleted) {
-    return "[Mensagem apagada]";
-  }
-
-  if (message.type === "reaction") {
-    return message.reaction?.emoji
-      ? `[Reacao] ${message.reaction.emoji}`
-      : "[Reacao]";
-  }
-
-  if (message.type === "interactive") {
-    const kind = message.interactive?.kind || "interactive";
-    return `[Interativa ${kind}] ${message.text || ""}`.trim();
-  }
-
-  if (message.type === "image") return message.text || "[Imagem]";
-  if (message.type === "video") return message.text || "[Video]";
-  if (message.type === "audio") return message.text || "[Audio]";
-  if (message.type === "sticker") return "[Sticker]";
-  if (message.type === "document")
-    return message.media?.fileName
-      ? `[Documento] ${message.media.fileName}`
-      : "[Documento]";
-  if (message.type === "contact") return "[Contato]";
-  if (message.type === "location") return "[Localizacao]";
-  if (message.type === "poll") return message.text || "[Enquete]";
-  if (message.type === "system") return message.text || "[Sistema]";
-
-  return message.text || "[Mensagem]";
-}
 
 function mergeMessage(existing: ChatMessage, incoming: Partial<ChatMessage>) {
   if (incoming.text && incoming.text !== existing.text) {
@@ -921,7 +785,7 @@ export class ChatStore {
       return;
     }
 
-    const nextReaction: MessageReaction = {
+    const nextReaction: MessageReactionFull = {
       emoji: payload.emoji,
       actor: payload.actor,
       fromMe: payload.fromMe,

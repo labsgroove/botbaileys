@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { WhatsAppService } from '../modules/whatsapp/whatsapp.service.js'
+import { WhatsAppService } from '../modules/whatsapp/whatsapp.service'
 
 const router = Router()
 

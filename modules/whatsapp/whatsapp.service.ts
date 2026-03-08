@@ -6,57 +6,19 @@ import {
 import { existsSync, readdirSync } from "fs";
 import path from "path";
 import pino from "pino";
-import { ChatStore } from "../chat/chat.store.js";
-import { createSession } from "./session.manager.js";
+import { ChatStore } from "../chat/chat.store";
+import { createSession } from "./session.manager";
+import type {
+  SessionConnectionStatus,
+  SessionState,
+  SendMessagePayload
+} from "../../types/message.types";
+import { normalizeJid } from "../../utils/message.utils";
+import { MessageSender } from "../../utils/message.sender";
 
 const sessions: Map<string, WASocket> = new Map();
 const reconnecting: Set<string> = new Set();
 const rawMessages: Map<string, Map<string, any>> = new Map();
-
-type SessionConnectionStatus =
-  | "idle"
-  | "connecting"
-  | "qr"
-  | "connected"
-  | "closed";
-
-type SessionState = {
-  status: SessionConnectionStatus;
-  qr?: string;
-  lastStatusCode?: number;
-  updatedAt: number;
-};
-
-type SendMessagePayload = {
-  jid: string;
-  type?: "text" | "media" | "sticker" | "reaction" | "interactive";
-  text?: string;
-  mediaUrl?: string;
-  mediaDataUrl?: string;
-  mimetype?: string;
-  fileName?: string;
-  ptt?: boolean;
-  seconds?: number;
-  reaction?: {
-    messageId: string;
-    emoji?: string;
-    participant?: string;
-    fromMe?: boolean;
-  };
-  interactive?: {
-    mode?: "buttons" | "list";
-    title?: string;
-    text?: string;
-    footer?: string;
-    buttonText?: string;
-    buttons?: Array<{ id: string; text: string }>;
-    sections?: Array<{
-      title: string;
-      rows: Array<{ id: string; title: string; description?: string }>;
-    }>;
-  };
-};
-
 const sessionStates: Map<string, SessionState> = new Map();
 
 function setState(sessionId: string, next: Partial<SessionState>) {
@@ -352,218 +314,8 @@ export class WhatsAppService {
       throw new Error("jid invalido");
     }
 
-    const type = payload.type || "text";
-
-    if (type === "reaction") {
-      const reaction = payload.reaction;
-      if (!reaction?.messageId) {
-        throw new Error("reaction.messageId e obrigatorio");
-      }
-
-      const targetMessage = ChatStore.getMessage(
-        sessionId,
-        normalizedJid,
-        reaction.messageId,
-      );
-      const targetKey: any = {
-        remoteJid: normalizedJid,
-        id: reaction.messageId,
-        fromMe: reaction.fromMe ?? !!targetMessage?.fromMe,
-      };
-
-      if (reaction.participant || targetMessage?.participant) {
-        targetKey.participant =
-          reaction.participant || targetMessage?.participant;
-      }
-
-      const response = await sock.sendMessage(normalizedJid, {
-        react: {
-          text: reaction.emoji || "",
-          key: targetKey,
-        },
-      });
-
-      ChatStore.addOutgoing(sessionId, {
-        id: response?.key?.id || undefined,
-        jid: normalizedJid,
-        text: reaction.emoji
-          ? `[Reacao] ${reaction.emoji}`
-          : "[Reacao removida]",
-        type: "reaction",
-        reaction: {
-          targetId: reaction.messageId,
-          emoji: reaction.emoji,
-        },
-        timestamp: Date.now(),
-        status: "server_ack",
-      });
-
-      return response;
-    }
-
-    if (type === "interactive") {
-      const interactive = payload.interactive || {};
-      const mode = interactive.mode || "buttons";
-
-      if (mode === "list") {
-        const sections = (interactive.sections || []).map((section) => ({
-          title: section.title,
-          rows: (section.rows || []).map((row) => ({
-            rowId: row.id,
-            title: row.title,
-            description: row.description,
-          })),
-        }));
-
-        const response = await sock.sendMessage(normalizedJid, {
-          title: interactive.title,
-          text: interactive.text || payload.text || "Selecione uma opcao",
-          footer: interactive.footer,
-          buttonText: interactive.buttonText || "Abrir lista",
-          sections,
-        } as any);
-
-        ChatStore.addOutgoing(sessionId, {
-          id: response?.key?.id || undefined,
-          jid: normalizedJid,
-          text: interactive.text || payload.text || "[Mensagem interativa]",
-          type: "interactive",
-          interactive: {
-            kind: "list",
-            title: interactive.title,
-            body: interactive.text,
-            footer: interactive.footer,
-            options: (interactive.sections || []).flatMap((section) =>
-              (section.rows || []).map((row) => ({
-                id: row.id,
-                title: row.title,
-                description: row.description,
-              })),
-            ),
-          },
-          timestamp: Date.now(),
-          status: "server_ack",
-        });
-
-        return response;
-      }
-
-      const buttons = (interactive.buttons || [])
-        .slice(0, 3)
-        .map((button, index) => ({
-          buttonId: button.id || `btn_${index + 1}`,
-          buttonText: { displayText: button.text || `Opcao ${index + 1}` },
-          type: 1,
-        }));
-
-      const response = await sock.sendMessage(normalizedJid, {
-        text: interactive.text || payload.text || "Escolha uma opcao",
-        footer: interactive.footer,
-        buttons,
-      } as any);
-
-      ChatStore.addOutgoing(sessionId, {
-        id: response?.key?.id || undefined,
-        jid: normalizedJid,
-        text: interactive.text || payload.text || "[Mensagem interativa]",
-        type: "interactive",
-        interactive: {
-          kind: "buttons",
-          title: interactive.title,
-          body: interactive.text,
-          footer: interactive.footer,
-          options: buttons.map((button: any) => ({
-            id: button.buttonId,
-            title: button.buttonText.displayText,
-          })),
-        },
-        timestamp: Date.now(),
-        status: "server_ack",
-      });
-
-      return response;
-    }
-
-    if (type === "media" || type === "sticker") {
-      const mediaKind = inferMediaType(payload);
-      const { source, mimetype } = buildMediaSource(payload);
-      const caption = payload.text || "";
-
-      const content: any = {};
-
-      if (mediaKind === "image") {
-        content.image = source;
-        if (caption) content.caption = caption;
-      } else if (mediaKind === "video") {
-        content.video = source;
-        if (caption) content.caption = caption;
-      } else if (mediaKind === "audio") {
-        content.audio = source;
-        content.ptt = !!payload.ptt;
-        if (payload.seconds) {
-          content.seconds = payload.seconds;
-        }
-      } else if (mediaKind === "sticker") {
-        content.sticker = source;
-      } else {
-        content.document = source;
-        content.mimetype = mimetype || "application/octet-stream";
-        content.fileName = payload.fileName || "arquivo";
-        if (caption) content.caption = caption;
-      }
-
-      if (mimetype && mediaKind !== "document") {
-        content.mimetype = mimetype;
-      }
-
-      const response = await sock.sendMessage(normalizedJid, content);
-
-      ChatStore.addOutgoing(sessionId, {
-        id: response?.key?.id || undefined,
-        jid: normalizedJid,
-        text:
-          mediaKind === "image"
-            ? caption || "[Imagem]"
-            : mediaKind === "video"
-              ? caption || "[Video]"
-              : mediaKind === "audio"
-                ? "[Audio]"
-                : mediaKind === "sticker"
-                  ? "[Sticker]"
-                  : caption || payload.fileName || "[Documento]",
-        type: mediaKind,
-        media: {
-          kind: mediaKind,
-          mimetype,
-          fileName: payload.fileName,
-          caption,
-          hasMedia: true,
-        },
-        timestamp: Date.now(),
-        status: "server_ack",
-      });
-
-      return response;
-    }
-
-    const text = payload.text?.trim();
-
-    if (!text) {
-      throw new Error("text e obrigatorio para mensagem de texto");
-    }
-
-    const response = await sock.sendMessage(normalizedJid, { text });
-
-    ChatStore.addOutgoing(sessionId, {
-      id: response?.key?.id || undefined,
-      jid: normalizedJid,
-      text,
-      type: "text",
-      timestamp: Date.now(),
-      status: "server_ack",
-    });
-
-    return response;
+    const sender = new MessageSender(sock, sessionId);
+    return await sender.sendMessage({ ...payload, jid: normalizedJid });
   }
 
   static async getMediaContent(

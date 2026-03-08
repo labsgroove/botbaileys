@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { WhatsAppService } from "../modules/whatsapp/whatsapp.service.js";
-import { ChatStore } from "../modules/chat/chat.store.js";
+import { WhatsAppService } from "../modules/whatsapp/whatsapp.service";
+import { ChatStore } from "../modules/chat/chat.store";
 
 const router = Router();
 

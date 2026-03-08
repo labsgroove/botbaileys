@@ -1,7 +1,7 @@
 import express from 'express'
-import sessionRoutes from './routes/session.routes.js'
-import chatRoutes from './routes/chat.routes.js'
-import { env } from './config/env.js'
+import sessionRoutes from './routes/session.routes'
+import chatRoutes from './routes/chat.routes'
+import { env } from './config/env'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
