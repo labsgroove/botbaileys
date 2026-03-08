@@ -102,78 +102,193 @@
 
             <main class="chat-panel">
                 <header id="chat-header" class="chat-header">
-                    <h2 id="chat-header-title">Selecione uma conversa</h2>
-                    <p id="chat-header-subtitle">
-                        Escolha um contato para abrir o historico.
-                    </p>
+                    <div class="chat-header-left">
+                        <h2 id="chat-header-title">Selecione uma conversa</h2>
+                        <p id="chat-header-subtitle">
+                            Escolha um contato para abrir o historico.
+                        </p>
+                    </div>
+                    <div class="chat-header-actions">
+                        <button id="business-toggle-btn" class="header-btn" type="button" title="Opções de Business">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"/>
+                                <circle cx="12" cy="4" r="2"/>
+                                <circle cx="12" cy="20" r="2"/>
+                                <circle cx="4" cy="12" r="2"/>
+                                <circle cx="20" cy="12" r="2"/>
+                            </svg>
+                        </button>
+                    </div>
                 </header>
 
                 <section id="message-list" class="message-list"></section>
 
-                <form id="message-form" class="message-form">
-                    <input
-                        id="jid-input"
-                        type="text"
-                        placeholder="5511999999999@s.whatsapp.net"
-                    />
+                <div id="message-composer" class="message-composer">
+                    <!-- Campo de input principal -->
+                    <div class="composer-input-wrapper">
+                        <button id="emoji-btn" class="composer-btn" type="button" title="Emoji">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                                <line x1="9" y1="9" x2="9.01" y2="9"/>
+                                <line x1="15" y1="9" x2="15.01" y2="9"/>
+                            </svg>
+                        </button>
+                        
+                        <div class="input-field-wrapper">
+                            <textarea 
+                                id="message-input" 
+                                class="message-input-field"
+                                placeholder="Digite uma mensagem"
+                                rows="1"
+                            ></textarea>
+                            <div id="typing-indicator" class="composer-typing-indicator hidden">
+                                <span class="typing-dot"></span>
+                                <span class="typing-dot"></span>
+                                <span class="typing-dot"></span>
+                            </div>
+                        </div>
 
-                    <select id="message-type">
-                        <option value="text">Texto</option>
-                        <option value="media">Midia</option>
-                        <option value="sticker">Sticker</option>
-                        <option value="reaction">Reaction</option>
-                        <option value="interactive">Interativa</option>
-                    </select>
+                        <button id="attach-btn" class="composer-btn" type="button" title="Anexar">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                            </svg>
+                        </button>
 
-                    <input
-                        id="message-input"
-                        type="text"
-                        placeholder="Digite uma mensagem"
-                    />
+                        <button id="voice-btn" class="composer-btn" type="button" title="Gravar áudio">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                <line x1="12" y1="19" x2="12" y2="23"/>
+                                <line x1="8" y1="23" x2="16" y2="23"/>
+                            </svg>
+                        </button>
 
-                    <input
-                        id="media-url-input"
-                        class="hidden"
-                        type="text"
-                        placeholder="URL da midia (opcional se usar arquivo)"
-                    />
-                    <input id="media-file-input" class="hidden" type="file" />
-                    <input
-                        id="mime-input"
-                        class="hidden"
-                        type="text"
-                        placeholder="mimetype opcional (ex: image/png)"
-                    />
-                    <input
-                        id="file-name-input"
-                        class="hidden"
-                        type="text"
-                        placeholder="Nome do arquivo (documentos)"
-                    />
+                        <button id="send-btn" class="composer-btn send-btn" type="submit" title="Enviar">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"/>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                            </svg>
+                        </button>
+                    </div>
 
-                    <input
-                        id="reaction-message-id"
-                        class="hidden"
-                        type="text"
-                        placeholder="ID da mensagem alvo"
-                    />
-                    <input
-                        id="reaction-emoji"
-                        class="hidden"
-                        type="text"
-                        placeholder="Emoji (ex: 👍)"
-                        value="👍"
-                    />
+                    <!-- Menu de anexos -->
+                    <div id="attach-menu" class="attach-menu hidden">
+                        <div class="attach-menu-header">
+                            <span>Anexar</span>
+                            <button id="close-attach-btn" class="close-btn">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="6" x2="6" y2="18"/>
+                                    <line x1="6" y1="6" x2="18" y2="18"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="attach-options">
+                            <button id="attach-image-btn" class="attach-option" data-type="image">
+                                <div class="attach-icon">📷</div>
+                                <span>Imagem</span>
+                                <input id="image-file-input" type="file" accept="image/*" class="hidden">
+                            </button>
+                            <button id="attach-video-btn" class="attach-option" data-type="video">
+                                <div class="attach-icon">🎥</div>
+                                <span>Vídeo</span>
+                                <input id="video-file-input" type="file" accept="video/*" class="hidden">
+                            </button>
+                            <button id="attach-document-btn" class="attach-option" data-type="document">
+                                <div class="attach-icon">📄</div>
+                                <span>Documento</span>
+                                <input id="document-file-input" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" class="hidden">
+                            </button>
+                            <button id="attach-audio-btn" class="attach-option" data-type="audio">
+                                <div class="attach-icon">🎵</div>
+                                <span>Áudio</span>
+                                <input id="audio-file-input" type="file" accept="audio/*" class="hidden">
+                            </button>
+                        </div>
+                    </div>
 
-                    <textarea
-                        id="interactive-json"
-                        class="hidden"
-                        rows="3"
-                        placeholder='{"mode":"buttons","buttons":[{"id":"opt_1","text":"Opcao 1"}]}'
-                    ></textarea>
+                    <!-- Emoji Picker -->
+                    <div id="emoji-picker" class="emoji-picker hidden">
+                        <div class="emoji-picker-header">
+                            <span>Emoji</span>
+                            <button id="close-emoji-btn" class="close-btn">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="6" x2="6" y2="18"/>
+                                    <line x1="6" y1="6" x2="18" y2="18"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="emoji-categories">
+                            <button class="emoji-category active" data-category="recent">Recentes</button>
+                            <button class="emoji-category" data-category="smile">Sorrisos</button>
+                            <button class="emoji-category" data-category="people">Pessoas</button>
+                            <button class="emoji-category" data-category="animals">Animais</button>
+                            <button class="emoji-category" data-category="food">Comida</button>
+                            <button class="emoji-category" data-category="activities">Atividades</button>
+                            <button class="emoji-category" data-category="travel">Viagens</button>
+                            <button class="emoji-category" data-category="objects">Objetos</button>
+                            <button class="emoji-category" data-category="symbols">Símbolos</button>
+                        </div>
+                        <div id="emoji-grid" class="emoji-grid"></div>
+                    </div>
 
-                    <button id="send-btn" type="submit">Enviar</button>
-                </form>
+                    <!-- Voice Recorder -->
+                    <div id="voice-recorder" class="voice-recorder hidden">
+                        <div class="voice-recorder-content">
+                            <div class="voice-wave">
+                                <span class="wave-dot"></span>
+                                <span class="wave-dot"></span>
+                                <span class="wave-dot"></span>
+                                <span class="wave-dot"></span>
+                                <span class="wave-dot"></span>
+                            </div>
+                            <div class="voice-timer">00:00</div>
+                            <button id="cancel-voice-btn" class="voice-btn-cancel">Cancelar</button>
+                            <button id="send-voice-btn" class="voice-btn-send hidden">Enviar</button>
+                        </div>
+                    </div>
+
+                    <!-- Business Options -->
+                    <div id="business-options" class="business-options hidden">
+                        <div class="business-options-header">
+                            <span>Opções de Business</span>
+                            <button id="close-business-btn" class="close-btn">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="6" x2="6" y2="18"/>
+                                    <line x1="6" y1="6" x2="18" y2="18"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="business-options-content">
+                            <button id="interactive-btn" class="business-option">
+                                <div class="business-icon">🔘</div>
+                                <span>Botões Interativos</span>
+                            </button>
+                            <button id="list-btn" class="business-option">
+                                <div class="business-icon">📋</div>
+                                <span>Lista</span>
+                            </button>
+                            <button id="location-btn" class="business-option">
+                                <div class="business-icon">📍</div>
+                                <span>Localização</span>
+                            </button>
+                            <button id="product-btn" class="business-option">
+                                <div class="business-icon">🛍️</div>
+                                <span>Catálogo</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Hidden inputs for API -->
+                    <input id="jid-input" type="hidden" />
+                    <input id="message-type" type="hidden" value="text" />
+                    <input id="media-url-input" type="hidden" />
+                    <input id="mime-input" type="hidden" />
+                    <input id="file-name-input" type="hidden" />
+                    <input id="reaction-message-id" type="hidden" />
+                    <input id="reaction-emoji" type="hidden" value="👍" />
+                    <textarea id="interactive-json" class="hidden" rows="3"></textarea>
+                </div>
             </main>
         </div>
 

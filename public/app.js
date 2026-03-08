@@ -27,18 +27,51 @@ const elements = {
   chatHeaderTitle: document.getElementById("chat-header-title"),
   chatHeaderSubtitle: document.getElementById("chat-header-subtitle"),
   messageList: document.getElementById("message-list"),
-  messageForm: document.getElementById("message-form"),
+  messageComposer: document.getElementById("message-composer"),
+  messageInput: document.getElementById("message-input"),
+  emojiBtn: document.getElementById("emoji-btn"),
+  attachBtn: document.getElementById("attach-btn"),
+  voiceBtn: document.getElementById("voice-btn"),
+  sendBtn: document.getElementById("send-btn"),
+  businessToggleBtn: document.getElementById("business-toggle-btn"),
+  // Hidden inputs
   jidInput: document.getElementById("jid-input"),
   messageType: document.getElementById("message-type"),
-  messageInput: document.getElementById("message-input"),
   mediaUrlInput: document.getElementById("media-url-input"),
-  mediaFileInput: document.getElementById("media-file-input"),
   mimeInput: document.getElementById("mime-input"),
   fileNameInput: document.getElementById("file-name-input"),
   reactionMessageId: document.getElementById("reaction-message-id"),
   reactionEmoji: document.getElementById("reaction-emoji"),
   interactiveJson: document.getElementById("interactive-json"),
   refreshChatsBtn: document.getElementById("refresh-chats-btn"),
+  // Menus
+  attachMenu: document.getElementById("attach-menu"),
+  emojiPicker: document.getElementById("emoji-picker"),
+  voiceRecorder: document.getElementById("voice-recorder"),
+  businessOptions: document.getElementById("business-options"),
+  // Attach options
+  closeAttachBtn: document.getElementById("close-attach-btn"),
+  attachImageBtn: document.getElementById("attach-image-btn"),
+  attachVideoBtn: document.getElementById("attach-video-btn"),
+  attachDocumentBtn: document.getElementById("attach-document-btn"),
+  attachAudioBtn: document.getElementById("attach-audio-btn"),
+  imageFileInput: document.getElementById("image-file-input"),
+  videoFileInput: document.getElementById("video-file-input"),
+  documentFileInput: document.getElementById("document-file-input"),
+  audioFileInput: document.getElementById("audio-file-input"),
+  // Emoji picker
+  closeEmojiBtn: document.getElementById("close-emoji-btn"),
+  emojiGrid: document.getElementById("emoji-grid"),
+  // Voice recorder
+  cancelVoiceBtn: document.getElementById("cancel-voice-btn"),
+  sendVoiceBtn: document.getElementById("send-voice-btn"),
+  voiceTimer: document.querySelector(".voice-timer"),
+  // Business options
+  closeBusinessBtn: document.getElementById("close-business-btn"),
+  interactiveBtn: document.getElementById("interactive-btn"),
+  listBtn: document.getElementById("list-btn"),
+  locationBtn: document.getElementById("location-btn"),
+  productBtn: document.getElementById("product-btn"),
 };
 
 const connectionLabels = {
@@ -48,6 +81,32 @@ const connectionLabels = {
   connected: "Conectado",
   closed: "Encerrada",
 };
+
+// Emoji data
+const emojiCategories = {
+  recent: ["😀", "😃", "😄", "😁", "😅", "😂", "🤣", "😊", "😇", "🙂", "😉", "😌", "😍", "🥰", "😘", "😗", "😙", "😚", "😋", "😛", "😜", "🤪", "😝", "🤗", "🤭"],
+  smile: ["😀", "😃", "😄", "😁", "😅", "😂", "🤣", "😊", "😇", "🙂", "😉", "😌", "😍", "🥰", "😘", "😗", "😙", "😚", "😋", "😛", "😜", "🤪", "😝", "🤗", "🤭", "🤫", "🤔", "🤐", "🤨", "😐", "😑", "😶", "😏", "😒", "🙄", "😬", "🤥", "😌", "😔", "😪", "🤤", "😴", "😷", "🤒", "🤕", "🤢", "🤮", "🤧", "🥵", "🥶", "🥴", "😵", "🤯", "🤠", "🥳", "😎", "🤓", "🧐"],
+  people: ["👋", "🤚", "🖐", "✋", "🖖", "👌", "🤌", "🤏", "✌", "🤞", "🤟", "🤘", "🤙", "👈", "👉", "👆", "🖕", "👇", "☝", "👍", "👎", "✊", "👊", "🤛", "🤜", "👏", "🙌", "👐", "🤲", "🙏", "🤝", "🧱", "💪", "🦾", "🦿", "🦵", "🦶", "👂", "🦻", "👃", "🧠", "🫀", "🫁", "🦷", "🦴", "👀", "👁", "👅", "👄"],
+  animals: ["🐵", "🙈", "🙉", "🙊", "🐒", "🐕", "🐕‍🦺", "🐩", "🐈", "🐈‍⬛", "🐈‍⬛", "🦫", "🐅", "🐆", "🐴", "🐎", "🦄", "🦓", "🦌", "🦬", "🐮", "🐂", "🐃", "🐄", "🐷", "🐖", "🐗", "🐽", "🐏", "🐑", "🐐", "🐪", "🐫", "🦙", "🦒", "🐘", "🦣", "🦏", "🦛", "🐭", "🐁", "🐀", "🐹", "🐰", "🐇", "🦫", "🦔", "🦇", "🐻", "🐻‍❄️", "🐨", "🐼", "🦥", "🦦", "🦨", "🦘", "🦡", "🐾", "🦃", "🐔", "🐓", "🐣", "🐤", "🐥", "🐦", "🐧", "🕊", "🦅", "🦆", "🦢", "🦉", "🤪", "🦚", "🦜"],
+  food: ["🍏", "🍎", "🍐", "🍊", "🍋", "🍌", "🍉", "🍇", "🍓", "🫐", "🍈", "🍒", "🍑", "🥭", "🍍", "🥥", "🥝", "🍅", "🍆", "🥑", "🥦", "🥬", "🥒", "🌶", "🫑", "🌽", "🥕", "🫒", "🧄", "🧅", "🥔", "🍠", "🥐", "🍯", "🥞", "🧇", "🥚", "🍳", "🥓", "🥩", "🍗", "🍖", "🦴", "🌭", "🍔", "🍟", "🍕", "🫓", "🥪", "🥙", "🧆", "🌮", "🌯", "🫔", "🥗", "🥘", "🫕", "🍝", "🍜", "🍲", "🍛", "🍣", "🍱", "🥟", "🦪", "🍤", "🍙", "🍚", "🍘", "🍥", "🥠", "🥮", "🍢", "🍡", "🍧", "🍨", "🍦", "🥧", "🧁", "🍰", "🎂", "🍮", "🍭", "🍬", "🍫", "🍿", "🍩", "🍪", "🌰", "🥜", "🍯", "🥛", "🍼", "☕", "🫖", "🍵", "🍶", "🍾", "🍷", "🍸", "🍹", "🍺", "🍻", "🥂", "🥃", "🥤", "🧋", "🧃", "🧉", "🧊", "🥢", "🍽", "🍴", "🥄"],
+  activities: ["⚽", "🏀", "🏈", "⚾", "🥎", "🎾", "🏐", "🏉", "🥏", "🎱", "🪀", "🏓", "🏸", "🏒", "🏑", "🥍", "🏏", "🪃", "🥅", "⛳", "🪁", "🏹", "🎣", "🤿", "🥊", "🥋", "🎽", "🛹", "🛷", "⛸", "🥌", "🎿", "⛷", "🏂", "🪂", "🏋️", "🤼", "🤸", "🤺", "🏇", "🧘", "🏄", "🏊", "🤽", "🚣", "🧗", "🚴", "🚵", "🎪", "🎭", "🎨", "🎬", "🎤", "🎧", "🎼", "🎹", "🥁", "🪘", "🎷", "🎺", "🪗", "🎸", "🪕", "🎻", "🪈", "🎲", "♟", "🎯", "🎳", "🎮", "🎰", "🧩"],
+  travel: ["🚗", "🚕", "🚙", "🚌", "🚎", "🏎", "🚓", "🚑", "🚒", "🚐", "🛻", "🚚", "🚛", "🚜", "🏍", "🛵", "🚲", "🛴", "🛹", "🛼", "🚁", "🛸", "✈", "🛩", "🪂", "🚀", "🛰", "🚡", "🚠", "🚟", "🚋", "🚊", "🚉", "🚈", "🚇", "🚝", "🚄", "🚅", "🚈", "🚂", "🚆", "🚃", "🚋", "🚎", "🚐", "🚑", "🚒", "🚓", "🚔", "🚕", "🚖", "🚗", "🚘", "🚙", "🛻", "🚚", "🚛", "🚜", "🏎", "🏍", "🛵", "🦽", "🦼", "🛺", "🚲", "🛴", "🛹", "🛼", "🚁", "🛸", "✈", "🛩", "🪂", "🚀", "🛰", "🚡", "🚠", "🚟", "🚋", "🚊", "🚉", "🚈", "🚇", "🚝", "🚞", "🚋", "🚌", "🚎", "🚐", "🚑", "🚒", "🚓", "🚔", "🚕", "🚖", "🚗", "🚘", "🚙", "🛻", "🚚", "🚛", "🚜", "🏎", "🏍", "🛵", "🦽", "🦼", "🛺", "🚲", "🛴", "🛹", "🛼", "🚁", "🛸", "✈", "🛩", "🪂", "🚀", "🛰", "🚡", "🚠", "🚟", "🚋", "🚊", "🚉", "🚈", "🚇", "🚝", "🚞", "🚟", "🚋", "🚌", "🚎", "🚐", "🚑", "🚒", "🚓", "🚔", "🚕", "🚖", "🚗", "🚘", "🚙", "🛻", "🚚", "🚛", "🚜", "🏎", "🏍", "🛵", "🦽", "🦼", "🛺", "⚓", "⛵", "🛶", "🚤", "🛳", "⛴", "🛥", "🚢", "✈", "🛩", "🛫", "🛬", "🪂", "🚀", "🛰", "🚡", "🚠", "🚟", "🚋", "🚊", "🚉", "🚈", "🚇", "🚝", "🚞", "🚟", "🚋", "🚌", "🚎", "🚐", "🚑", "🚒", "🚓", "🚔", "🚕", "🚖", "🚗", "🚘", "🚙", "🛻", "🚚", "🚛", "🚜", "🏎", "🏍", "🛵", "🦽", "🦼", "🛺", "⚓", "⛵", "🛶", "🚤", "🛳", "⛴", "🛥", "🚢"],
+  objects: ["⌚", "📱", "📲", "💻", "⌨", "🖥", "🖨", "🖱", "🖲", "🕹", "🗜", "💽", "💾", "💿", "📀", "📼", "📷", "📸", "📹", "🎥", "📽", "🎞", "📞", "☎", "📟", "📠", "📺", "📻", "🎙", "🎚", "🎛", "🧭", "⏱", "⏲", "⏰", "🕰", "⌛", "⏳", "📡", "🔋", "🔌", "💡", "🔦", "🕯", "🪔", "🧯", "🛢", "💸", "💵", "💴", "💶", "💷", "💰", "💳", "💎", "⚖", "🧰", "🔧", "🔨", "⚒", "🛠", "⛏", "🔩", "⚙", "🧱", "⛓", "🧲", "🔫", "💣", "🧨", "🪓", "🔪", "🗡", "⚔", "🛡", "🚬", "⚰", "⚱", "🏺", "🔎", "🕳", "🩹", "🩺", "💊", "💉", "🩸", "🧬", "🦠", "🧫", "🧪", "🧯", "🔬", "🔭", "📡", "🛰", "🚀", "🛸", "✈", "🛩", "🪂", "🚁", "🛶", "⛵", "🚤", "🛳", "⛴", "🛥", "🚢", "⚓", "🪝", "🎣", "🛒", "🎁", "🎈", "🎏", "🎀", "🎊", "🎉", "🎎", "🎐", "🎌", "🏮", "🎃", "🎄", "🎆", "🎇", "🧨", "✨", "🪄", "🎈", "🎁", "🎀", "🎗", "🎟", "🎫", "🎖", "🏆", "🏅", "🥇", "🥈", "🥉", "⚽", "🏀", "🏈", "⚾", "🥎", "🎾", "🏐", "🏉", "🥏", "🎱", "🪀", "🏓", "🏸", "🏒", "🏑", "🥍", "🏏", "🪃", "🥅", "⛳", "🪁", "🏹", "🎣", "🤿", "🥊", "🥋", "🎽", "🛹", "🛷", "⛸", "🥌", "🎿", "⛷", "🏂", "🪂", "🏋️", "🤼", "🤸", "🤺", "🏇", "🧘", "🏄", "🏊", "🤽", "🚣", "🧗", "🚴", "🚵", "🎪", "🎭", "🎨", "🎬", "🎤", "🎧", "🎼", "🎹", "🥁", "🪘", "🎷", "🎺", "🪗", "🎸", "🪕", "🎻", "🪈", "🎲", "♟", "🎯", "🎳", "🎮", "🎰", "🧩"],
+  symbols: ["❤", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔", "❣", "💕", "💞", "💓", "💗", "💖", "💘", "💝", "💟", "☮", "✝", "☪", "🕉", "☸", "✡", "🔯", "🕎", "☯", "☦", "🛐", "⛎", "♈", "♉", "♊", "♋", "♌", "♍", "♎", "♏", "♐", "♑", "♒", "♓", "🆔", "⚛", "🉑", "☢", "☣", "📴", "📳", "🈶", "🈚", "🈸", "🈺", "🈷", "✴", "🆚", "💮", "🉐", "㊙", "㊗", "🈴", "🈵", "🈹", "🈲", "🅰", "🅱", "🆎", "🆑", "🅾", "🆘", "❌", "⭕", "🛑", "⛔", "📛", "🚫", "💯", "💢", "♨", "🚷", "🚯", "🚳", "🚱", "🔞", "📵", "🚭", "❗", "❕", "❓", "❔", "‼", "⁉", "🔅", "🔆", "〽", "⚠", "🚸", "🔱", "⚜", "🔰", "♻", "✅", "🈯", "💹", "❇", "✳", "❎", "🌐", "💠", "Ⓜ", "🌀", "💤", "🏧", "🚾", "♿", "🅿", "🈳", "🈂", "🛂", "🛃", "🛄", "🛅", "🚹", "🚺", "🚼", "🚻", "🚮", "🎦", "📶", "🈁", "🔣", "ℹ", "🔤", "🔡", "🔠", "🆖", "🆑", "🅾", "🆘", "❌", "⭕", "🛑", "⛔", "📛", "🚫", "💯", "💢", "♨", "🚷", "🚯", "🚳", "🚱", "🔞", "📵", "🚭", "❗", "❕", "❓", "❔", "‼", "⁉", "🔅", "🔆", "〽", "⚠", "🚸", "🔱", "⚜", "🔰", "♻", "✅", "🈯", "💹", "❇", "✳", "❎", "🌐", "💠", "Ⓜ", "🌀", "💤", "🏧", "🚾", "♿", "🅿", "🈳", "🈂", "🛂", "🛃", "🛄", "🛅", "🚹", "🚺", "🚼", "🚻", "🚮", "🎦", "📶", "🈁", "🔣", "ℹ", "🔤", "🔡", "🔠", "🆖", "🆑", "🅾", "🆘", "❌", "⭕", "🛑", "⛔", "📛", "🚫", "💯", "💢", "♨", "🚷", "🚯", "🚳", "🚱", "🔞", "📵", "🚭", "❗", "❕", "❓", "❔", "‼", "⁉", "🔅", "🔆", "〽", "⚠", "🚸", "🔱", "⚜", "🔰", "♻", "✅", "🈯", "💹", "❇", "✳", "❎", "🌐", "💠", "Ⓜ", "🌀", "💤", "🏧", "🚾", "♿", "🅿", "🈳", "🈂", "🛂", "🛃", "🛄", "🛅", "🚹", "🚺", "🚼", "🚻", "🚮", "🎦", "📶", "🈁"]
+};
+
+// Voice recording state
+let voiceRecorder = {
+  mediaRecorder: null,
+  audioChunks: [],
+  startTime: null,
+  timerInterval: null,
+  isRecording: false,
+};
+
+// State for UI
+let currentEmojiCategory = 'recent';
+let recentEmojis = JSON.parse(localStorage.getItem('recentEmojis') || '[]');
 
 function formatTime(ts) {
   const date = new Date(ts);
@@ -59,6 +118,272 @@ function formatTime(ts) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatVoiceTime(seconds) {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+function addToRecentEmojis(emoji) {
+  // Remove emoji if it already exists
+  recentEmojis = recentEmojis.filter(e => e !== emoji);
+  // Add to beginning
+  recentEmojis.unshift(emoji);
+  // Keep only last 24
+  recentEmojis = recentEmojis.slice(0, 24);
+  // Save to localStorage
+  localStorage.setItem('recentEmojis', JSON.stringify(recentEmojis));
+  // Update recent category
+  emojiCategories.recent = recentEmojis;
+}
+
+function hideAllMenus() {
+  elements.attachMenu.classList.add('hidden');
+  elements.emojiPicker.classList.add('hidden');
+  elements.voiceRecorder.classList.add('hidden');
+  elements.businessOptions.classList.add('hidden');
+}
+
+function showAttachMenu() {
+  hideAllMenus();
+  elements.attachMenu.classList.remove('hidden');
+}
+
+function showEmojiPicker() {
+  hideAllMenus();
+  elements.emojiPicker.classList.remove('hidden');
+  renderEmojiGrid(currentEmojiCategory);
+}
+
+function showVoiceRecorder() {
+  hideAllMenus();
+  elements.voiceRecorder.classList.remove('hidden');
+}
+
+function showBusinessOptions() {
+  hideAllMenus();
+  elements.businessOptions.classList.remove('hidden');
+}
+
+function renderEmojiGrid(category) {
+  const emojis = emojiCategories[category] || [];
+  elements.emojiGrid.innerHTML = '';
+  
+  emojis.forEach(emoji => {
+    const button = document.createElement('button');
+    button.className = 'emoji-item';
+    button.textContent = emoji;
+    button.onclick = () => insertEmoji(emoji);
+    elements.emojiGrid.appendChild(button);
+  });
+}
+
+function insertEmoji(emoji) {
+  const cursorPos = elements.messageInput.selectionStart;
+  const textBefore = elements.messageInput.value.substring(0, cursorPos);
+  const textAfter = elements.messageInput.value.substring(cursorPos);
+  
+  elements.messageInput.value = textBefore + emoji + textAfter;
+  elements.messageInput.focus();
+  
+  // Set cursor position after emoji
+  const newCursorPos = cursorPos + emoji.length;
+  elements.messageInput.setSelectionRange(newCursorPos, newCursorPos);
+  
+  addToRecentEmojis(emoji);
+  hideAllMenus();
+}
+
+function startVoiceRecording() {
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(stream => {
+      voiceRecorder.mediaRecorder = new MediaRecorder(stream);
+      voiceRecorder.audioChunks = [];
+      voiceRecorder.startTime = Date.now();
+      
+      voiceRecorder.mediaRecorder.ondataavailable = event => {
+        voiceRecorder.audioChunks.push(event.data);
+      };
+      
+      voiceRecorder.mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(voiceRecorder.audioChunks, { type: 'audio/webm' });
+        sendVoiceMessage(audioBlob);
+      };
+      
+      voiceRecorder.mediaRecorder.start();
+      voiceRecorder.isRecording = true;
+      
+      // Update UI
+      elements.voiceBtn.classList.add('recording');
+      elements.sendVoiceBtn.classList.remove('hidden');
+      
+      // Start timer
+      updateVoiceTimer();
+      voiceRecorder.timerInterval = setInterval(updateVoiceTimer, 100);
+    })
+    .catch(error => {
+      console.error('Error accessing microphone:', error);
+      alert('Não foi possível acessar o microfone. Verifique as permissões.');
+    });
+}
+
+function stopVoiceRecording() {
+  if (voiceRecorder.mediaRecorder && voiceRecorder.isRecording) {
+    voiceRecorder.mediaRecorder.stop();
+    voiceRecorder.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+    voiceRecorder.isRecording = false;
+    
+    // Stop timer
+    if (voiceRecorder.timerInterval) {
+      clearInterval(voiceRecorder.timerInterval);
+      voiceRecorder.timerInterval = null;
+    }
+    
+    // Update UI
+    elements.voiceBtn.classList.remove('recording');
+    elements.sendVoiceBtn.classList.add('hidden');
+  }
+}
+
+function updateVoiceTimer() {
+  if (voiceRecorder.startTime) {
+    const elapsed = (Date.now() - voiceRecorder.startTime) / 1000;
+    elements.voiceTimer.textContent = formatVoiceTime(elapsed);
+  }
+}
+
+function cancelVoiceRecording() {
+  stopVoiceRecording();
+  hideAllMenus();
+  elements.voiceTimer.textContent = '00:00';
+}
+
+async function sendVoiceMessage(audioBlob) {
+  if (!state.activeJid) return;
+  
+  try {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'voice.webm');
+    
+    const response = await fetch(`/session/${encodeURIComponent(state.sessionId)}/send-voice/${encodeURIComponent(state.activeJid)}`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to send voice message');
+    }
+    
+    // Reset timer
+    elements.voiceTimer.textContent = '00:00';
+    hideAllMenus();
+    
+    // Refresh messages
+    await loadMessages(state.activeJid);
+  } catch (error) {
+    console.error('Error sending voice message:', error);
+    alert('Erro ao enviar mensagem de voz');
+  }
+}
+
+async function handleFileUpload(file, type) {
+  if (!state.activeJid) return;
+  
+  try {
+    const formData = new FormData();
+    formData.append('media', file);
+    
+    let endpoint = `/session/${encodeURIComponent(state.sessionId)}/send-media/${encodeURIComponent(state.activeJid)}`;
+    
+    switch (type) {
+      case 'image':
+        endpoint += '?type=image';
+        break;
+      case 'video':
+        endpoint += '?type=video';
+        break;
+      case 'document':
+        endpoint += '?type=document';
+        break;
+      case 'audio':
+        endpoint += '?type=audio';
+        break;
+    }
+    
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to send media');
+    }
+    
+    hideAllMenus();
+    await loadMessages(state.activeJid);
+  } catch (error) {
+    console.error('Error sending media:', error);
+    alert('Erro ao enviar mídia');
+  }
+}
+
+function setupBusinessMessage(type) {
+  elements.messageType.value = 'interactive';
+  
+  switch (type) {
+    case 'interactive':
+      elements.interactiveJson.value = JSON.stringify({
+        mode: "buttons",
+        buttons: [
+          { id: "opt_1", text: "Opção 1" },
+          { id: "opt_2", text: "Opção 2" }
+        ]
+      }, null, 2);
+      break;
+    case 'list':
+      elements.interactiveJson.value = JSON.stringify({
+        mode: "list",
+        buttonText: "Ver opções",
+        sections: [
+          {
+            title: "Categoria 1",
+            rows: [
+              { id: "item_1", title: "Item 1", description: "Descrição 1" },
+              { id: "item_2", title: "Item 2", description: "Descrição 2" }
+            ]
+          }
+        ]
+      }, null, 2);
+      break;
+    case 'location':
+      elements.interactiveJson.value = JSON.stringify({
+        type: "location",
+        location: {
+          latitude: -23.5505,
+          longitude: -46.6333,
+          name: "São Paulo",
+          address: "São Paulo, SP, Brasil"
+        }
+      }, null, 2);
+      break;
+    case 'product':
+      elements.interactiveJson.value = JSON.stringify({
+        type: "product",
+        catalogId: "catalog_123",
+        productIds: ["product_1", "product_2"]
+      }, null, 2);
+      break;
+  }
+  
+  hideAllMenus();
+  elements.messageInput.focus();
+}
+
+function autoResizeTextarea() {
+  elements.messageInput.style.height = 'auto';
+  elements.messageInput.style.height = Math.min(elements.messageInput.scrollHeight, 120) + 'px';
 }
 
 function formatLastSeen(timestamp) {
@@ -685,12 +1010,17 @@ async function sendMessage(event) {
     return;
   }
 
-  const jid = elements.jidInput.value.trim();
+  const jid = state.activeJid || elements.jidInput.value.trim();
   const type = elements.messageType.value;
   const text = elements.messageInput.value.trim();
 
   if (!jid) {
-    alert("JID obrigatorio");
+    alert("Selecione um contato ou informe um JID");
+    return;
+  }
+
+  if (!text && type !== 'interactive') {
+    alert("Digite uma mensagem");
     return;
   }
 
@@ -700,10 +1030,6 @@ async function sendMessage(event) {
   };
 
   if (type === "text") {
-    if (!text) {
-      return;
-    }
-
     payload.text = text;
   }
 
@@ -774,6 +1100,7 @@ async function sendMessage(event) {
   });
 
   elements.messageInput.value = "";
+  elements.messageInput.style.height = 'auto';
   if (type === "media" || type === "sticker") {
     elements.mediaUrlInput.value = "";
     elements.mediaFileInput.value = "";
@@ -883,8 +1210,8 @@ async function startSessionConnection(sessionId) {
 async function boot() {
   renderMessages();
   setConnectionVisual("idle");
-  applyComposerType();
 
+  // Connection
   elements.connectBtn.addEventListener("click", async () => {
     const sessionId = elements.sessionInput.value.trim();
     if (!sessionId) return;
@@ -896,11 +1223,14 @@ async function boot() {
     }
   });
 
-  elements.messageType.addEventListener("change", () => {
-    applyComposerType();
+  // Message input auto-resize
+  elements.messageInput.addEventListener("input", () => {
+    autoResizeTextarea();
   });
 
-  elements.messageForm.addEventListener("submit", async (event) => {
+  // Send message
+  elements.sendBtn.addEventListener("click", async (event) => {
+    event.preventDefault();
     try {
       await sendMessage(event);
     } catch (error) {
@@ -908,10 +1238,113 @@ async function boot() {
     }
   });
 
+  // Enter to send (Shift+Enter for new line)
+  elements.messageInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      elements.sendBtn.click();
+    }
+  });
+
+  // Emoji picker
+  elements.emojiBtn.addEventListener("click", showEmojiPicker);
+  elements.closeEmojiBtn.addEventListener("click", hideAllMenus);
+
+  // Emoji categories
+  document.querySelectorAll('.emoji-category').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.emoji-category').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentEmojiCategory = btn.dataset.category;
+      renderEmojiGrid(currentEmojiCategory);
+    });
+  });
+
+  // Attach menu
+  elements.attachBtn.addEventListener("click", showAttachMenu);
+  elements.closeAttachBtn.addEventListener("click", hideAllMenus);
+
+  // File uploads
+  elements.attachImageBtn.addEventListener("click", () => {
+    elements.imageFileInput.click();
+  });
+
+  elements.attachVideoBtn.addEventListener("click", () => {
+    elements.videoFileInput.click();
+  });
+
+  elements.attachDocumentBtn.addEventListener("click", () => {
+    elements.documentFileInput.click();
+  });
+
+  elements.attachAudioBtn.addEventListener("click", () => {
+    elements.audioFileInput.click();
+  });
+
+  elements.imageFileInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) handleFileUpload(file, 'image');
+  });
+
+  elements.videoFileInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) handleFileUpload(file, 'video');
+  });
+
+  elements.documentFileInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) handleFileUpload(file, 'document');
+  });
+
+  elements.audioFileInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) handleFileUpload(file, 'audio');
+  });
+
+  // Voice recording
+  elements.voiceBtn.addEventListener("mousedown", startVoiceRecording);
+  elements.voiceBtn.addEventListener("mouseup", stopVoiceRecording);
+  elements.voiceBtn.addEventListener("mouseleave", stopVoiceRecording);
+  elements.voiceBtn.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    startVoiceRecording();
+  });
+  elements.voiceBtn.addEventListener("touchend", (e) => {
+    e.preventDefault();
+    stopVoiceRecording();
+  });
+
+  elements.cancelVoiceBtn.addEventListener("click", cancelVoiceRecording);
+  elements.sendVoiceBtn.addEventListener("click", () => {
+    stopVoiceRecording();
+  });
+
+  // Business options
+  elements.businessToggleBtn.addEventListener("click", showBusinessOptions);
+  elements.closeBusinessBtn.addEventListener("click", hideAllMenus);
+
+  elements.interactiveBtn.addEventListener("click", () => {
+    setupBusinessMessage('interactive');
+  });
+
+  elements.listBtn.addEventListener("click", () => {
+    setupBusinessMessage('list');
+  });
+
+  elements.locationBtn.addEventListener("click", () => {
+    setupBusinessMessage('location');
+  });
+
+  elements.productBtn.addEventListener("click", () => {
+    setupBusinessMessage('product');
+  });
+
+  // Chat search
   elements.chatSearchInput.addEventListener("input", () => {
     renderChats();
   });
 
+  // Refresh chats
   elements.refreshChatsBtn?.addEventListener("click", async () => {
     try {
       await loadChats();
@@ -924,6 +1357,14 @@ async function boot() {
     }
   });
 
+  // Close menus when clicking outside
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest('.message-composer')) {
+      hideAllMenus();
+    }
+  });
+
+  // Auto-start session
   try {
     const sessions = await callApi("/sessions");
     const preferredSessionId =
