@@ -405,6 +405,48 @@
                         </div>
                     </div>
 
+                    <!-- Bot Context Configuration -->
+                    <div class="config-section">
+                        <h3>Contexto do Bot</h3>
+                        
+                        <div class="field">
+                            <label>Prompt do Sistema</label>
+                            <textarea id="system-prompt" rows="4" placeholder="Defina o comportamento e personalidade do bot...">Você é um atendente profissional.
+Responda de forma objetiva.
+Nunca invente informações.</textarea>
+                            <div class="field-help">Instruções iniciais que definem como o bot deve se comportar</div>
+                        </div>
+
+                        <div class="field">
+                            <label>Tamanho Máximo do Histórico</label>
+                            <input id="max-history-length" type="number" min="5" max="100" value="20">
+                            <div class="field-help">Número máximo de mensagens mantidas na memória da conversa</div>
+                        </div>
+                    </div>
+
+                    <!-- Bot Test Chat -->
+                    <div class="config-section">
+                        <h3>Testar Bot</h3>
+                        <div class="test-chat-container">
+                            <div class="test-chat-messages" id="test-chat-messages">
+                                <div class="test-message bot-message">
+                                    <div class="message-content">Olá! Envie uma mensagem para testar como eu respondo.</div>
+                                </div>
+                            </div>
+                            <div class="test-chat-input-container">
+                                <input 
+                                    id="test-chat-input" 
+                                    type="text" 
+                                    placeholder="Digite uma mensagem para testar..."
+                                    class="test-chat-input"
+                                >
+                                <button id="test-chat-send-btn" class="btn-primary" type="button">
+                                    Enviar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="config-status" id="config-status"></div>
                 </div>
 

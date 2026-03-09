@@ -16,6 +16,10 @@ export interface AIConfig {
     model: string
     temperature: number
   }
+  botContext?: {
+    systemPrompt: string
+    maxHistoryLength: number
+  }
 }
 
 export class AIConfigService {
@@ -33,6 +37,10 @@ export class AIConfigService {
           url: env.LM_STUDIO_URL,
           model: env.MODEL,
           temperature: 0.7
+        },
+        botContext: {
+          systemPrompt: `Você é um atendente profissional.\nResponda de forma objetiva.\nNunca invente informações.`,
+          maxHistoryLength: 20
         }
       }
     }

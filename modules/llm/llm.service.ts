@@ -21,6 +21,16 @@ export class LLMService {
     }
   }
 
+  static async askWithConfig(messages: any[], config: any): Promise<string> {
+    if (config.provider === 'google-ai' && config.googleAI) {
+      return this.askGoogleAI(messages, config.googleAI)
+    } else if (config.provider === 'lm-studio' && config.lmStudio) {
+      return this.askLMStudio(messages, config.lmStudio)
+    } else {
+      throw new Error('Configuração inválida para teste')
+    }
+  }
+
   private static async askGoogleAI(messages: any[], config: AIConfig['googleAI']): Promise<string> {
     if (!config) {
       throw new Error('Configuração do Google AI não encontrada')

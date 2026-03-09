@@ -36,6 +36,13 @@ router.post('/config', async (req, res) => {
       return res.status(400).json({ error: 'URL do LM Studio é obrigatória' })
     }
     
+    // Validar configurações de contexto do bot
+    if (config.botContext) {
+      if (config.botContext.maxHistoryLength && (config.botContext.maxHistoryLength < 5 || config.botContext.maxHistoryLength > 100)) {
+        return res.status(400).json({ error: 'Tamanho máximo do histórico deve estar entre 5 e 100' })
+      }
+    }
+    
     await AIConfigService.saveConfig(config)
     await LLMService.reloadConfig()
     
@@ -74,6 +81,40 @@ router.post('/google-ai-models', async (req, res) => {
     res.json({ models })
   } catch (error) {
     res.status(500).json({ error: 'Erro ao obter modelos' })
+  }
+})
+
+// Testar chat do bot com configuração atual
+router.post('/test-chat', async (req, res) => {
+  try {
+    const { message, config } = req.body
+    
+    if (!message || !config) {
+      return res.status(400).json({ error: 'Mensagem e configuração são obrigatórios' })
+    }
+    
+    // Validar configuração
+    if (config.provider === 'google-ai' && !config.googleAI?.apiKey) {
+      return res.status(400).json({ error: 'API Key do Google AI é obrigatória' })
+    }
+    
+    if (config.provider === 'lm-studio' && !config.lmStudio?.url) {
+      return res.status(400).json({ error: 'URL do LM Studio é obrigatória' })
+    }
+    
+    // Criar conversa temporária para teste
+    const tempConversation = [
+      { role: 'system', content: config.systemPrompt || 'Você é um atendente profissional.' },
+      { role: 'user', content: message }
+    ]
+    
+    // Usar LLMService temporariamente com a configuração fornecida
+    const response = await LLMService.askWithConfig(tempConversation, config)
+    
+    res.json({ response })
+  } catch (error) {
+    console.error('Error testing chat:', error)
+    res.status(500).json({ error: 'Erro ao processar mensagem de teste' })
   }
 })
 

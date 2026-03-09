@@ -73,10 +73,10 @@ export class AIConversationService {
     
     try {
       // Adiciona mensagem do usuário à conversa
-      ConversationService.addMessage(jid, 'user', text)
+      await ConversationService.addMessage(jid, 'user', text)
       
       // Obtém o histórico da conversa
-      const conversation = ConversationService.getConversation(jid)
+      const conversation = await ConversationService.getConversation(jid)
       console.log(`📝 Conversation has ${conversation.length} messages`)
       
       // Envia para a IA processar
@@ -84,7 +84,7 @@ export class AIConversationService {
       console.log(`🤖 AI response: "${response}"`)
       
       // Adiciona resposta da IA à conversa
-      ConversationService.addMessage(jid, 'assistant', response)
+      await ConversationService.addMessage(jid, 'assistant', response)
       
       // Envia resposta de volta para o WhatsApp
       const payload: SendMessagePayload = {

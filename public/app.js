@@ -69,6 +69,13 @@ const elements = {
   googleAiModel: document.getElementById("google-ai-model"),
   googleAiTemperature: document.getElementById("google-ai-temperature"),
   googleAiMaxTokens: document.getElementById("google-ai-max-tokens"),
+  // Bot Context inputs
+  systemPrompt: document.getElementById("system-prompt"),
+  maxHistoryLength: document.getElementById("max-history-length"),
+  // Test Chat elements
+  testChatMessages: document.getElementById("test-chat-messages"),
+  testChatInput: document.getElementById("test-chat-input"),
+  testChatSendBtn: document.getElementById("test-chat-send-btn"),
   // Attach options
   closeAttachBtn: document.getElementById("close-attach-btn"),
   attachImageBtn: document.getElementById("attach-image-btn"),
@@ -1284,6 +1291,12 @@ async function loadAiConfig() {
       elements.googleAiTemperature.value = config.googleAI.temperature || 0.7;
       elements.googleAiMaxTokens.value = config.googleAI.maxTokens || 2048;
     }
+    
+    // Load Bot Context config
+    if (config.botContext) {
+      elements.systemPrompt.value = config.botContext.systemPrompt || 'Você é um atendente profissional.\nResponda de forma objetiva.\nNunca invente informações.';
+      elements.maxHistoryLength.value = config.botContext.maxHistoryLength || 20;
+    }
   } catch (error) {
     console.error('Error loading AI config:', error);
     showConfigStatus('Erro ao carregar configuração', 'error');
@@ -1306,7 +1319,11 @@ async function saveAiConfig() {
         model: elements.googleAiModel.value,
         temperature: parseFloat(elements.googleAiTemperature.value),
         maxTokens: parseInt(elements.googleAiMaxTokens.value)
-      } : undefined
+      } : undefined,
+      botContext: {
+        systemPrompt: elements.systemPrompt.value.trim(),
+        maxHistoryLength: parseInt(elements.maxHistoryLength.value)
+      }
     };
     
     const response = await fetch('/api/ai/config', {
@@ -1328,6 +1345,85 @@ async function saveAiConfig() {
     console.error('Error saving AI config:', error);
     showConfigStatus('Erro ao salvar configuração', 'error');
   }
+}
+
+async function sendTestMessage() {
+  const message = elements.testChatInput.value.trim();
+  if (!message) return;
+
+  // Adiciona mensagem do usuário
+  addTestMessage(message, 'user');
+  elements.testChatInput.value = '';
+
+  try {
+    // Pega configuração atual do bot
+    const config = await getCurrentBotConfig();
+    
+    // Envia mensagem para teste
+    const response = await fetch('/api/ai/test-chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message,
+        config
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      addTestMessage(data.response, 'bot');
+    } else {
+      const error = await response.json();
+      addTestMessage(`Erro: ${error.error || 'Falha ao processar mensagem'}`, 'bot', true);
+    }
+  } catch (error) {
+    console.error('Error testing chat:', error);
+    addTestMessage('Erro de conexão com o servidor', 'bot', true);
+  }
+}
+
+function addTestMessage(content, sender, isError = false) {
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `test-message ${sender}-message ${isError ? 'error' : ''}`;
+  
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'message-content';
+  contentDiv.textContent = content;
+  
+  messageDiv.appendChild(contentDiv);
+  elements.testChatMessages.appendChild(messageDiv);
+  
+  // Scroll para baixo
+  elements.testChatMessages.scrollTop = elements.testChatMessages.scrollHeight;
+}
+
+async function getCurrentBotConfig() {
+  const provider = document.querySelector('input[name="ai-provider"]:checked').value;
+  
+  const config = {
+    provider,
+    systemPrompt: elements.systemPrompt.value.trim(),
+    maxHistoryLength: parseInt(elements.maxHistoryLength.value)
+  };
+
+  if (provider === 'lm-studio') {
+    config.lmStudio = {
+      url: elements.lmStudioUrl.value.trim(),
+      model: elements.lmStudioModel.value.trim(),
+      temperature: parseFloat(elements.lmStudioTemperature.value)
+    };
+  } else if (provider === 'google-ai') {
+    config.googleAI = {
+      apiKey: elements.googleAiApiKey.value.trim(),
+      model: elements.googleAiModel.value,
+      temperature: parseFloat(elements.googleAiTemperature.value),
+      maxTokens: parseInt(elements.googleAiMaxTokens.value)
+    };
+  }
+
+  return config;
 }
 
 async function testGoogleAiConnection() {
@@ -1651,6 +1747,12 @@ async function boot() {
   elements.closeAiConfigBtn.addEventListener("click", hideAiConfigModal);
   elements.cancelAiConfigBtn.addEventListener("click", hideAiConfigModal);
   elements.saveAiConfigBtn.addEventListener("click", saveAiConfig);
+  elements.testChatSendBtn.addEventListener("click", sendTestMessage);
+  elements.testChatInput.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      sendTestMessage();
+    }
+  });
   elements.testGoogleAiBtn.addEventListener("click", testGoogleAiConnection);
 
   // AI Toggle
