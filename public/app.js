@@ -1356,6 +1356,8 @@ async function testGoogleAiConnection() {
     
     if (result.valid) {
       showConfigStatus('✅ Conexão com Google AI bem-sucedida!', 'success');
+      // Load available models after successful connection
+      await loadGoogleAIModels();
     } else {
       showConfigStatus('❌ Falha na conexão. Verifique se a API Key está correta.', 'error');
     }
@@ -1365,6 +1367,59 @@ async function testGoogleAiConnection() {
   } finally {
     elements.testGoogleAiBtn.disabled = false;
     elements.testGoogleAiBtn.textContent = 'Testar';
+  }
+}
+
+// Load available Google AI models
+async function loadGoogleAIModels() {
+  const apiKey = elements.googleAiApiKey.value.trim();
+  
+  if (!apiKey) {
+    return;
+  }
+  
+  try {
+    const response = await fetch('/api/ai/google-ai-models', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ apiKey })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      const models = data.models || [];
+      
+      // Save current selection
+      const currentModel = elements.googleAiModel.value;
+      
+      // Clear existing options
+      elements.googleAiModel.innerHTML = '';
+      
+      // Add available models with friendly names
+      const modelNames = {
+        'gemini-2.5-flash': 'Gemini 2.5 Flash (Rápido)',
+        'gemini-2.5-pro': 'Gemini 2.5 Pro (Completo)',
+        'gemini-3-pro-preview': 'Gemini 3 Pro Preview',
+        'gemini-3-flash-preview': 'Gemini 3 Flash Preview',
+        'gemini-3.1-flash-lite': 'Gemini 3.1 Flash Lite'
+      };
+      
+      models.forEach((model) => {
+        const option = document.createElement('option');
+        option.value = model;
+        option.textContent = modelNames[model] || model;
+        elements.googleAiModel.appendChild(option);
+      });
+      
+      // Restore previous selection if it still exists
+      if (models.includes(currentModel)) {
+        elements.googleAiModel.value = currentModel;
+      }
+    }
+  } catch (error) {
+    console.error('Error loading Google AI models:', error);
   }
 }
 
@@ -1563,6 +1618,19 @@ async function boot() {
   // Chat search
   elements.chatSearchInput.addEventListener("input", () => {
     renderChats();
+  });
+
+  // Google AI API Key debounce for loading models
+  let googleAiKeyTimeout;
+  elements.googleAiApiKey.addEventListener("input", () => {
+    clearTimeout(googleAiKeyTimeout);
+    const apiKey = elements.googleAiApiKey.value.trim();
+    
+    if (apiKey.length > 10) { // Only trigger if API key seems complete
+      googleAiKeyTimeout = setTimeout(() => {
+        loadGoogleAIModels();
+      }, 1500); // Wait 1.5 seconds after user stops typing
+    }
   });
 
   // Refresh chats
