@@ -9,7 +9,8 @@ import type {
   MessageQuote,
   ChatMeta,
   SessionEvent,
-  ContactUpdate
+  ContactUpdate,
+  SessionMessage
 } from "../../types/message.types";
 import { 
   normalizeJid as normalizeJidUtil,
@@ -341,6 +342,25 @@ function mergeMessage(existing: ChatMessage, incoming: Partial<ChatMessage>) {
   }
 }
 
+function shouldCreateChatForMessage(message: SessionMessage): boolean {
+  // Não cria chats para mensagens de sistema
+  if (message.type === "system" || message.type === "unknown") {
+    return false;
+  }
+  
+  // Não cria chats para status broadcast
+  if (message.jid === "status@broadcast") {
+    return false;
+  }
+  
+  // Não cria chats para mensagens vazias sem conteúdo
+  if (!message.text && !message.media && !message.interactive && !message.quoted) {
+    return false;
+  }
+  
+  return true;
+}
+
 function upsertMessage(
   sessionId: string,
   payload: {
@@ -366,6 +386,17 @@ function upsertMessage(
   },
   options: { countUnread?: boolean } = {},
 ) {
+  // Valida se a mensagem deve criar um chat
+  const messageObj: SessionMessage = {
+    ...payload,
+    timestamp: payload.timestamp || Date.now(),
+    status: payload.status ? normalizeMessageStatus(payload.status as number | string | null) : undefined,
+  };
+  
+  if (!shouldCreateChatForMessage(messageObj)) {
+    return;
+  }
+
   const session = ensureSession(sessionId);
   const chat = ensureChat(session, payload.jid);
 
@@ -673,6 +704,7 @@ export class ChatStore {
       isDeleted?: boolean;
     },
   ) {
+    // Usa a mesma função upsertMessage para histórico, garantindo consistência
     upsertMessage(sessionId, payload, { countUnread: false });
   }
 
@@ -699,28 +731,8 @@ export class ChatStore {
     const message = findMessage(session, payload.jid, payload.id);
 
     if (!message) {
-      upsertMessage(
-        sessionId,
-        {
-          id: payload.id,
-          jid: payload.jid,
-          text: payload.text || "",
-          fromMe: false,
-          timestamp: payload.timestamp || Date.now(),
-          status: payload.status,
-          type: payload.type || "unknown",
-          rawType: payload.rawType,
-          media: payload.media,
-          interactive: payload.interactive,
-          quoted: payload.quoted,
-          isEdited: payload.isEdited,
-          isDeleted: payload.isDeleted,
-          participant: payload.participant,
-          name: payload.name,
-        },
-        { countUnread: false },
-      );
-
+      // Não cria mensagens novas para updates de status/receipt
+      // Apenas atualiza se a mensagem já existir
       return;
     }
 
