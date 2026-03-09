@@ -20,6 +20,12 @@ export interface AIConfig {
     systemPrompt: string
     maxHistoryLength: number
   }
+  groupSettings?: {
+    enabled: boolean
+    respondToMentions: boolean
+    respondToCommands: boolean
+    commandPrefix: string
+  }
 }
 
 export class AIConfigService {
@@ -41,6 +47,12 @@ export class AIConfigService {
         botContext: {
           systemPrompt: `Você é um atendente profissional.\nResponda de forma objetiva.\nNunca invente informações.`,
           maxHistoryLength: 20
+        },
+        groupSettings: {
+          enabled: false,
+          respondToMentions: true,
+          respondToCommands: true,
+          commandPrefix: '!'
         }
       }
     }

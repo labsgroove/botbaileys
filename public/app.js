@@ -69,9 +69,14 @@ const elements = {
   googleAiModel: document.getElementById("google-ai-model"),
   googleAiTemperature: document.getElementById("google-ai-temperature"),
   googleAiMaxTokens: document.getElementById("google-ai-max-tokens"),
-  // Bot Context inputs
   systemPrompt: document.getElementById("system-prompt"),
   maxHistoryLength: document.getElementById("max-history-length"),
+  // Group Settings
+  groupAiEnabled: document.getElementById("group-ai-enabled"),
+  groupOptions: document.getElementById("group-options"),
+  respondToMentions: document.getElementById("respond-to-mentions"),
+  respondToCommands: document.getElementById("respond-to-commands"),
+  commandPrefix: document.getElementById("command-prefix"),
   // Test Chat elements
   testChatMessages: document.getElementById("test-chat-messages"),
   testChatInput: document.getElementById("test-chat-input"),
@@ -1297,9 +1302,35 @@ async function loadAiConfig() {
       elements.systemPrompt.value = config.botContext.systemPrompt || 'Você é um atendente profissional.\nResponda de forma objetiva.\nNunca invente informações.';
       elements.maxHistoryLength.value = config.botContext.maxHistoryLength || 20;
     }
+    
+    // Load Group Settings config
+    if (config.groupSettings) {
+      elements.groupAiEnabled.checked = config.groupSettings.enabled || false;
+      elements.respondToMentions.checked = config.groupSettings.respondToMentions !== false;
+      elements.respondToCommands.checked = config.groupSettings.respondToCommands !== false;
+      elements.commandPrefix.value = config.groupSettings.commandPrefix || '!';
+      
+      // Show/hide group options based on enabled state
+      toggleGroupOptions(config.groupSettings.enabled || false);
+    } else {
+      // Default values
+      elements.groupAiEnabled.checked = false;
+      elements.respondToMentions.checked = true;
+      elements.respondToCommands.checked = true;
+      elements.commandPrefix.value = '!';
+      toggleGroupOptions(false);
+    }
   } catch (error) {
     console.error('Error loading AI config:', error);
     showConfigStatus('Erro ao carregar configuração', 'error');
+  }
+}
+
+function toggleGroupOptions(enabled) {
+  if (enabled) {
+    elements.groupOptions.style.display = 'block';
+  } else {
+    elements.groupOptions.style.display = 'none';
   }
 }
 
@@ -1323,6 +1354,12 @@ async function saveAiConfig() {
       botContext: {
         systemPrompt: elements.systemPrompt.value.trim(),
         maxHistoryLength: parseInt(elements.maxHistoryLength.value)
+      },
+      groupSettings: {
+        enabled: elements.groupAiEnabled.checked,
+        respondToMentions: elements.respondToMentions.checked,
+        respondToCommands: elements.respondToCommands.checked,
+        commandPrefix: elements.commandPrefix.value.trim() || '!'
       }
     };
     
@@ -1752,6 +1789,11 @@ async function boot() {
     if (e.key === "Enter") {
       sendTestMessage();
     }
+  });
+  
+  // Group Settings toggle
+  elements.groupAiEnabled.addEventListener("change", (e) => {
+    toggleGroupOptions(e.target.checked);
   });
   elements.testGoogleAiBtn.addEventListener("click", testGoogleAiConnection);
 

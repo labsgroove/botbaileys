@@ -424,6 +424,46 @@ Nunca invente informações.</textarea>
                         </div>
                     </div>
 
+                    <!-- Group Settings Configuration -->
+                    <div class="config-section">
+                        <h3>Configurações de Grupos</h3>
+                        
+                        <div class="field">
+                            <label class="checkbox-label">
+                                <input id="group-ai-enabled" type="checkbox">
+                                <span class="checkmark"></span>
+                                Habilitar IA em grupos
+                            </label>
+                            <div class="field-help">Permite que o bot responda mensagens em grupos do WhatsApp</div>
+                        </div>
+
+                        <div id="group-options" class="group-options">
+                            <div class="field">
+                                <label class="checkbox-label">
+                                    <input id="respond-to-mentions" type="checkbox" checked>
+                                    <span class="checkmark"></span>
+                                    Responder a menções
+                                </label>
+                                <div class="field-help">Responde quando alguém menciona o bot no grupo</div>
+                            </div>
+
+                            <div class="field">
+                                <label class="checkbox-label">
+                                    <input id="respond-to-commands" type="checkbox" checked>
+                                    <span class="checkmark"></span>
+                                    Responder a comandos
+                                </label>
+                                <div class="field-help">Responde a mensagens que começam com o prefixo de comando</div>
+                            </div>
+
+                            <div class="field">
+                                <label>Prefixo de Comando</label>
+                                <input id="command-prefix" type="text" maxlength="5" value="!" placeholder="!">
+                                <div class="field-help">Caractere que identifica um comando (ex: !, /, .)</div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Bot Test Chat -->
                     <div class="config-section">
                         <h3>Testar Bot</h3>

@@ -1,6 +1,7 @@
 import { LLMService } from '../llm/llm.service'
 import { ConversationService } from '../conversation/conversation.service'
 import { WhatsAppService } from '../whatsapp/whatsapp.service'
+import { AIConfigService } from './ai.config.service'
 import type { SendMessagePayload } from '../../types/message.types'
 import fs from 'fs/promises'
 import path from 'path'
@@ -54,6 +55,19 @@ export class AIConversationService {
     return this.enabledSessions.has(sessionId)
   }
   
+  private static isGroupJid(jid: string): boolean {
+    return jid.endsWith('@g.us')
+  }
+
+  private static isMention(text: string, botNumber: string): boolean {
+    const mention = `@${botNumber.replace('@s.whatsapp.net', '')}`
+    return text.includes(mention)
+  }
+
+  private static isCommand(text: string, prefix: string): boolean {
+    return text.trim().startsWith(prefix)
+  }
+
   static async processIncomingMessage(sessionId: string, jid: string, text: string): Promise<void> {
     console.log(`🔍 Processing message: sessionId=${sessionId}, jid=${jid}, text="${text}"`)
     
@@ -68,8 +82,48 @@ export class AIConversationService {
       console.log(`❌ Empty message, ignoring`)
       return
     }
+
+    // Verifica se é mensagem de grupo
+    const isGroup = this.isGroupJid(jid)
+    if (isGroup) {
+      console.log(`👥 Message from group: ${jid}`)
+      
+      // Carrega configuração de grupos
+      const config = await AIConfigService.loadConfig()
+      const groupSettings = config.groupSettings
+      
+      // Se IA para grupos estiver desabilitada, ignora
+      if (!groupSettings?.enabled) {
+        console.log(`❌ AI disabled for groups`)
+        return
+      }
+      
+      // Verifica se deve responder a menções ou comandos
+      const shouldRespondToMentions = groupSettings.respondToMentions
+      const shouldRespondToCommands = groupSettings.respondToCommands
+      const commandPrefix = groupSettings.commandPrefix
+      
+      // Para obter o número do bot, precisamos da sessão do WhatsApp
+      // Por ora, vamos verificar apenas comandos
+      const isCommand = this.isCommand(text, commandPrefix)
+      
+      if (!shouldRespondToCommands && !shouldRespondToMentions) {
+        console.log(`❌ AI not configured to respond in groups`)
+        return
+      }
+      
+      if (shouldRespondToCommands && isCommand) {
+        console.log(`✅ Command detected, processing...`)
+      } else if (shouldRespondToMentions) {
+        // TODO: Implementar verificação de menções quando tivermos acesso ao número do bot
+        console.log(`⚠️ Mention checking not implemented yet, processing anyway...`)
+      } else {
+        console.log(`❌ Message doesn't match group response criteria`)
+        return
+      }
+    }
     
-    console.log(`✅ AI enabled, processing message...`)
+    console.log(`✅ Processing message with AI...`)
     
     try {
       // Adiciona mensagem do usuário à conversa
@@ -95,7 +149,7 @@ export class AIConversationService {
       
       await WhatsAppService.sendMessage(sessionId, payload)
       
-      console.log(`✅ AI response sent to ${jid}`)
+      console.log(`✅ AI response sent to ${jid}${isGroup ? ' (group)' : ''}`)
       
     } catch (error) {
       console.error('❌ Error processing message with AI:', error)
@@ -108,7 +162,7 @@ export class AIConversationService {
       }
       
       await WhatsAppService.sendMessage(sessionId, errorPayload)
-      console.log(`📤 Error message sent to ${jid}`)
+      console.log(`📤 Error message sent to ${jid}${isGroup ? ' (group)' : ''}`)
     }
   }
   

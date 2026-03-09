@@ -43,6 +43,17 @@ router.post('/config', async (req, res) => {
       }
     }
     
+    // Validar configurações de grupos
+    if (config.groupSettings) {
+      if (config.groupSettings.commandPrefix && config.groupSettings.commandPrefix.length > 5) {
+        return res.status(400).json({ error: 'Prefixo de comando deve ter no máximo 5 caracteres' })
+      }
+      
+      if (config.groupSettings.commandPrefix && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(config.groupSettings.commandPrefix)) {
+        return res.status(400).json({ error: 'Prefixo de comando deve ser um caractere especial' })
+      }
+    }
+    
     await AIConfigService.saveConfig(config)
     await LLMService.reloadConfig()
     
