@@ -10,6 +10,23 @@ const conversations: Record<string, Message[]> = {}
 const lastActivity: Record<string, number> = {}
 
 export class ConversationService {
+  static async getFilteredConversation(jid: string, maxContextMessages: number = 10): Promise<Message[]> {
+    const fullConversation = await this.getConversation(jid)
+    
+    // Se não houver muitas mensagens, retorna tudo
+    if (fullConversation.length <= maxContextMessages + 1) {
+      return fullConversation
+    }
+    
+    // Sempre inclui o system prompt
+    const systemMessage = fullConversation.find(msg => msg.role === 'system')
+    const recentMessages = fullConversation
+      .filter(msg => msg.role !== 'system')
+      .slice(-maxContextMessages)
+    
+    return systemMessage ? [systemMessage, ...recentMessages] : recentMessages
+  }
+
   static async getConversation(jid: string): Promise<Message[]> {
     if (!conversations[jid]) {
       const config = await AIConfigService.loadConfig()

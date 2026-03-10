@@ -37,21 +37,31 @@ export class LLMService {
     }
 
     try {
-      // Google AI não suporta role 'system', então tratamos o prompt como primeira mensagem
-      const googleAIMessages = messages
-        .filter(msg => msg.role !== 'system') // Remove mensagens system
-        .map(msg => ({
+      // Google AI não suporta role 'system' diretamente, então tratamos o prompt como primeira mensagem
+      const systemMessage = messages.find(msg => msg.role === 'system');
+      const otherMessages = messages.filter(msg => msg.role !== 'system');
+      
+      // Se houver system prompt, coloca como primeira mensagem
+      const googleAIMessages: any[] = [];
+      
+      if (systemMessage) {
+        googleAIMessages.push({
+          parts: [{ text: systemMessage.content }]
+        });
+      }
+      
+      // Adiciona as outras mensagens
+      otherMessages.forEach(msg => {
+        googleAIMessages.push({
           parts: [{ text: msg.content }]
-        }));
+        });
+      });
 
-      // Se não houver mensagens (apenas system), cria uma mensagem inicial
+      // Se não houver mensagens, cria uma mensagem inicial
       if (googleAIMessages.length === 0) {
-        const systemMessage = messages.find(msg => msg.role === 'system');
-        if (systemMessage) {
-          googleAIMessages.push({
-            parts: [{ text: systemMessage.content }]
-          });
-        }
+        googleAIMessages.push({
+          parts: [{ text: 'Olá! Como posso ajudar?' }]
+        });
       }
 
       const response = await axios.post(

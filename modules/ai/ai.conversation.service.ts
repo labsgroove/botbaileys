@@ -129,9 +129,9 @@ export class AIConversationService {
       // Adiciona mensagem do usuário à conversa
       await ConversationService.addMessage(jid, 'user', text)
       
-      // Obtém o histórico da conversa
-      const conversation = await ConversationService.getConversation(jid)
-      console.log(`📝 Conversation has ${conversation.length} messages`)
+      // Obtém o histórico filtrado da conversa (contexto relevante)
+      const conversation = await ConversationService.getFilteredConversation(jid, 10)
+      console.log(`📝 Sending ${conversation.length} messages to AI (filtered context)`)
       
       // Envia para a IA processar
       const response = await LLMService.ask(conversation)
