@@ -20,7 +20,7 @@ export class Database {
     }
 
     try {
-      const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/whatsapp-bot'
+      const mongoUri = process.env.MONGODB_URI || 'mongodb://rdlionco:YcMv9G2cJWNtoENW@ac-h9wnnyn-shard-00-00.fipv3tk.mongodb.net:27017,ac-h9wnnyn-shard-00-01.fipv3tk.mongodb.net:27017,ac-h9wnnyn-shard-00-02.fipv3tk.mongodb.net:27017/?ssl=true&replicaSet=atlas-dc0w4t-shard-0&authSource=admin&appName=Cluster0/whatsapp-bot'
       
       await mongoose.connect(mongoUri, {
         maxPoolSize: 10,

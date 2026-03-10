@@ -294,18 +294,19 @@ const validateInput = (value, rules = {}) => {
 const showLoadingState = (element, loadingText = 'Carregando...') => {
   if (!element) return null;
   
-  const originalContent = element.textContent;
+  // Preserve innerHTML (including SVGs) instead of just textContent
+  const originalContent = element.innerHTML;
   const originalDisabled = element.disabled;
   
   element.disabled = true;
-  element.textContent = loadingText;
+  element.innerHTML = loadingText;
   element.dataset.originalContent = originalContent;
   element.dataset.originalDisabled = originalDisabled;
   
   return () => {
     // Return restore function
     element.disabled = originalDisabled;
-    element.textContent = originalContent;
+    element.innerHTML = originalContent;
     delete element.dataset.originalContent;
     delete element.dataset.originalDisabled;
   };
@@ -1457,9 +1458,9 @@ async function sendMessage(event) {
     payload.interactive = interactivePayload;
   }
 
+  const restoreSendBtn = showLoadingState(elements.sendBtn, 'Enviando...');
+  
   try {
-    const restoreSendBtn = showLoadingState(elements.sendBtn, 'Enviando...');
-    
     await callApi(`/session/${encodeURIComponent(state.sessionId)}/messages`, {
       method: "POST",
       body: JSON.stringify(payload),
