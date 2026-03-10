@@ -982,14 +982,12 @@ async function selectChat(jid) {
   if (hasChanged) {
     state.activeMessages = nextMessages;
     state.activeMessagesSignature = nextSignature;
-  }
-
-  renderChats();
-
-  if (hasChanged) {
     renderMessages();
     hydrateMediaForActiveMessages().catch((error) => console.error(error));
   }
+
+  // Atualiza a lista de chats para marcar como lido
+  renderChats();
 }
 
 function fileToDataUrl(file) {
@@ -1157,13 +1155,21 @@ function startHistoryRefresh() {
   state.historyRefreshInterval = setInterval(async () => {
     try {
       await loadChats();
+      
+      // Verifica se há novas mensagens no chat ativo
       if (state.activeJid) {
-        await selectChat(state.activeJid);
+        const currentChat = state.chats.find(c => c.jid === state.activeJid);
+        
+        // Se há mensagens não lidas ou o chat foi atualizado recentemente
+        if (currentChat && (currentChat.unread > 0 || 
+            (Date.now() - currentChat.lastTimestamp) < 10000)) {
+          await selectChat(state.activeJid);
+        }
       }
     } catch (error) {
-      console.error(error);
+      console.error('Error in history refresh:', error);
     }
-  }, 3000);
+  }, 3000); // 3 segundos para melhor responsividade
 }
 
 function stopHistoryRefresh() {
@@ -1434,6 +1440,78 @@ function addTestMessage(content, sender, isError = false) {
   
   // Scroll para baixo
   elements.testChatMessages.scrollTop = elements.testChatMessages.scrollHeight;
+}
+
+async function loadMessages(jid) {
+  if (!state.sessionId || !jid) return;
+
+  try {
+    const data = await callApi(
+      `/session/${encodeURIComponent(state.sessionId)}/messages/${encodeURIComponent(jid)}`,
+    );
+    const resolvedJid = data?.jid || jid;
+    const nextMessages = Array.isArray(data.messages) ? data.messages : [];
+    const nextSignature = messagesSignature(nextMessages);
+    const isSameChat = state.activeJid === resolvedJid;
+    const hasChanged =
+      !isSameChat || state.activeMessagesSignature !== nextSignature;
+
+    state.activeJid = resolvedJid;
+
+    if (hasChanged) {
+      state.activeMessages = nextMessages;
+      state.activeMessagesSignature = nextSignature;
+      renderMessages();
+      hydrateMediaForActiveMessages().catch((error) => console.error(error));
+    }
+  } catch (error) {
+    console.error('Error loading messages:', error);
+  }
+}
+
+// Adiciona uma nova mensagem ao chat atual sem recarregar tudo
+function appendNewMessage(message) {
+  if (!state.activeJid || message.jid !== state.activeJid) {
+    return false; // Não é para o chat atual
+  }
+
+  // Verifica se a mensagem já existe
+  const exists = state.activeMessages.some(m => m.id === message.id);
+  if (exists) {
+    return false;
+  }
+
+  // Adiciona a mensagem
+  state.activeMessages.push(message);
+  state.activeMessages.sort((a, b) => a.timestamp - b.timestamp);
+  
+  // Atualiza a assinatura
+  state.activeMessagesSignature = messagesSignature(state.activeMessages);
+  
+  // Renderiza apenas a nova mensagem para melhor performance
+  renderMessages();
+  scrollToBottom(false);
+  
+  return true;
+}
+
+// Atualiza uma mensagem existente (status, reações, etc.)
+function updateExistingMessage(messageId, updates) {
+  const messageIndex = state.activeMessages.findIndex(m => m.id === messageId);
+  if (messageIndex === -1) {
+    return false;
+  }
+
+  // Aplica as atualizações
+  Object.assign(state.activeMessages[messageIndex], updates);
+  
+  // Atualiza a assinatura
+  state.activeMessagesSignature = messagesSignature(state.activeMessages);
+  
+  // Renderiza apenas a mensagem atualizada
+  renderMessages();
+  
+  return true;
 }
 
 async function getCurrentBotConfig() {
