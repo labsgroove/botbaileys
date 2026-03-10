@@ -212,6 +212,7 @@ class MessageParser {
       fileLength: Number(mediaMessage?.fileLength || 0) || undefined,
       hasMedia: true,
       mediaKeyTs: normalizeTimestamp(mediaMessage?.mediaKeyTimestamp),
+      mediaKey: mediaMessage?.mediaKey || undefined,
     };
   }
 }

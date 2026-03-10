@@ -99,6 +99,27 @@ function inferMediaType(
   return "document";
 }
 
+function extractMediaKey(message: any): Buffer | null {
+  if (!message?.message) return null;
+  
+  const mediaTypes = [
+    'imageMessage',
+    'videoMessage', 
+    'audioMessage',
+    'stickerMessage',
+    'documentMessage'
+  ];
+  
+  for (const mediaType of mediaTypes) {
+    const mediaMessage = message.message[mediaType];
+    if (mediaMessage?.mediaKey) {
+      return mediaMessage.mediaKey;
+    }
+  }
+  
+  return null;
+}
+
 function cacheRawMessage(
   sessionId: string,
   jid?: string,
@@ -368,7 +389,19 @@ export class WhatsAppService {
       throw new Error("Mensagem de midia nao encontrada");
     }
 
-    console.log(`[DEBUG] Found media message, attempting download...`);
+    // Check if media key exists in the raw message
+    const mediaKey = extractMediaKey(messageToUse);
+    if (!mediaKey) {
+      console.error(`[DEBUG] Missing media key for message ${messageId}. Raw message structure:`, {
+        messageType: Object.keys(messageToUse.message || {}),
+        hasMediaMessage: !!messageToUse.message?.mediaMessage,
+        mediaKeys: Object.keys(messageToUse.message?.mediaMessage || {}),
+        fullMediaMessage: messageToUse.message?.mediaMessage
+      });
+      throw new Error("Chave de mídia não encontrada na mensagem");
+    }
+
+    console.log(`[DEBUG] Found media message with key, attempting download...`);
 
     try {
       const buffer = await downloadMediaMessage(messageToUse, "buffer", {}, {

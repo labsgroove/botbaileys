@@ -33,6 +33,7 @@ export type MessageMedia = {
   fileLength?: number;
   hasMedia?: boolean;
   mediaKeyTs?: number;
+  mediaKey?: Buffer;
 };
 
 export type MessageReaction = {
