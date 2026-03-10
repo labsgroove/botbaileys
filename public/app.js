@@ -140,7 +140,189 @@ let voiceRecorder = {
 let currentEmojiCategory = 'recent';
 let recentEmojis = JSON.parse(localStorage.getItem('recentEmojis') || '[]');
 
+// Event management utilities
+const eventListeners = new Map();
+
+const addEventListenerSafe = (element, event, handler, options) => {
+  if (!element) return null;
+  
+  const wrappedHandler = (...args) => {
+    try {
+      handler(...args);
+    } catch (error) {
+      console.error(`Error in ${event} handler:`, error);
+      showToast('Ocorreu um erro inesperado', 'error');
+    }
+  };
+  
+  element.addEventListener(event, wrappedHandler, options);
+  
+  // Store reference for cleanup
+  const key = `${element.constructor.name}-${event}-${Date.now()}`;
+  eventListeners.set(key, { element, event, handler: wrappedHandler });
+  
+  return key;
+};
+
+const removeEventListenerSafe = (key) => {
+  const listener = eventListeners.get(key);
+  if (listener) {
+    listener.element.removeEventListener(listener.event, listener.handler);
+    eventListeners.delete(key);
+  }
+};
+
+const removeAllEventListeners = () => {
+  eventListeners.forEach((listener, key) => {
+    listener.element.removeEventListener(listener.event, listener.handler);
+  });
+  eventListeners.clear();
+};
+
+// Enhanced error handling
+const handleAsyncError = async (promise, fallback = null) => {
+  try {
+    return await promise;
+  } catch (error) {
+    console.error('Async operation failed:', error);
+    showToast(error.message || 'Ocorreu um erro', 'error');
+    return fallback;
+  }
+};
+
+const validateInput = (value, rules = {}) => {
+  const errors = [];
+  
+  if (rules.required && (!value || value.trim() === '')) {
+    errors.push('Este campo é obrigatório');
+  }
+  
+  if (rules.minLength && value.length < rules.minLength) {
+    errors.push(`Mínimo de ${rules.minLength} caracteres`);
+  }
+  
+  if (rules.maxLength && value.length > rules.maxLength) {
+    errors.push(`Máximo de ${rules.maxLength} caracteres`);
+  }
+  
+  if (rules.pattern && !rules.pattern.test(value)) {
+    errors.push('Formato inválido');
+  }
+  
+  return errors;
+};
+
+// UI Feedback utilities
+const showLoadingState = (element, loadingText = 'Carregando...') => {
+  if (!element) return null;
+  
+  const originalContent = element.textContent;
+  const originalDisabled = element.disabled;
+  
+  element.disabled = true;
+  element.textContent = loadingText;
+  element.dataset.originalContent = originalContent;
+  element.dataset.originalDisabled = originalDisabled;
+  
+  return () => {
+    // Return restore function
+    element.disabled = originalDisabled;
+    element.textContent = originalContent;
+    delete element.dataset.originalContent;
+    delete element.dataset.originalDisabled;
+  };
+};
+
+const showElementError = (element, errorText = 'Erro') => {
+  if (!element) return;
+  
+  element.classList.add('error');
+  element.setAttribute('aria-invalid', 'true');
+  
+  setTimeout(() => {
+    element.classList.remove('error');
+    element.removeAttribute('aria-invalid');
+  }, 3000);
+};
+
+const showToast = (message, type = 'info', duration = 3000) => {
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  toast.setAttribute('role', 'alert');
+  toast.setAttribute('aria-live', 'polite');
+  
+  document.body.appendChild(toast);
+  
+  // Trigger animation
+  requestAnimationFrame(() => {
+    toast.classList.add('show');
+  });
+  
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => {
+      if (document.body.contains(toast)) {
+        document.body.removeChild(toast);
+      }
+    }, 300);
+  }, duration);
+};
+
+// Performance utilities
+const debounce = (func, wait) => {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
+
+const throttle = (func, limit) => {
+  let inThrottle;
+  return function(...args) {
+    if (!inThrottle) {
+      func.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
+    }
+  };
+};
+
+// Safe DOM manipulation
+const safeQuerySelector = (selector, fallback = null) => {
+  try {
+    return document.querySelector(selector) || fallback;
+  } catch (error) {
+    console.warn(`Invalid selector: ${selector}`, error);
+    return fallback;
+  }
+};
+
+const safeElementOperation = (element, operation, fallback = null) => {
+  try {
+    if (element && typeof operation === 'function') {
+      return operation(element);
+    }
+    return fallback;
+  } catch (error) {
+    console.warn('Element operation failed:', error);
+    return fallback;
+  }
+};
+
+// Debounced search for input
+const debouncedSearch = debounce(() => {
+  renderChats();
+}, 300);
+
 function formatTime(ts) {
+  if (!ts) return "--:--";
+  
   const date = new Date(ts);
   if (Number.isNaN(date.getTime())) {
     return "--:--";
@@ -172,10 +354,18 @@ function addToRecentEmojis(emoji) {
 }
 
 function hideAllMenus() {
-  elements.attachMenu.classList.add('hidden');
-  elements.emojiPicker.classList.add('hidden');
-  elements.voiceRecorder.classList.add('hidden');
-  elements.businessOptions.classList.add('hidden');
+  const menus = [elements.attachMenu, elements.emojiPicker, elements.voiceRecorder, elements.businessOptions];
+  
+  menus.forEach(menu => {
+    if (menu) {
+      safeElementOperation(menu, (el) => el.classList.add('hidden'));
+    }
+  });
+  
+  // Reset voice recording state if active
+  if (voiceRecorder.isRecording) {
+    cancelVoiceRecording();
+  }
 }
 
 function showAttachMenu() {
@@ -200,32 +390,46 @@ function showBusinessOptions() {
 }
 
 function renderEmojiGrid(category) {
+  if (!elements.emojiGrid) return;
+  
   const emojis = emojiCategories[category] || [];
-  elements.emojiGrid.innerHTML = '';
+  const fragment = document.createDocumentFragment();
   
   emojis.forEach(emoji => {
     const button = document.createElement('button');
     button.className = 'emoji-item';
     button.textContent = emoji;
+    button.setAttribute('aria-label', `Emoji ${emoji}`);
     button.onclick = () => insertEmoji(emoji);
-    elements.emojiGrid.appendChild(button);
+    fragment.appendChild(button);
   });
+  
+  elements.emojiGrid.innerHTML = '';
+  elements.emojiGrid.appendChild(fragment);
 }
 
 function insertEmoji(emoji) {
-  const cursorPos = elements.messageInput.selectionStart;
-  const textBefore = elements.messageInput.value.substring(0, cursorPos);
-  const textAfter = elements.messageInput.value.substring(cursorPos);
+  if (!elements.messageInput) return;
   
-  elements.messageInput.value = textBefore + emoji + textAfter;
-  elements.messageInput.focus();
-  
-  // Set cursor position after emoji
-  const newCursorPos = cursorPos + emoji.length;
-  elements.messageInput.setSelectionRange(newCursorPos, newCursorPos);
-  
-  addToRecentEmojis(emoji);
-  hideAllMenus();
+  try {
+    const cursorPos = elements.messageInput.selectionStart;
+    const textBefore = elements.messageInput.value.substring(0, cursorPos);
+    const textAfter = elements.messageInput.value.substring(cursorPos);
+    
+    elements.messageInput.value = textBefore + emoji + textAfter;
+    
+    // Set cursor position after emoji
+    const newCursorPos = cursorPos + emoji.length;
+    elements.messageInput.setSelectionRange(newCursorPos, newCursorPos);
+    
+    addToRecentEmojis(emoji);
+    hideAllMenus();
+    
+    // Trigger input event for auto-resize
+    elements.messageInput.dispatchEvent(new Event('input'));
+  } catch (error) {
+    console.error('Error inserting emoji:', error);
+  }
 }
 
 function startVoiceRecording() {
@@ -248,8 +452,8 @@ function startVoiceRecording() {
       voiceRecorder.isRecording = true;
       
       // Update UI
-      elements.voiceBtn.classList.add('recording');
-      elements.sendVoiceBtn.classList.remove('hidden');
+      safeElementOperation(elements.voiceBtn, (btn) => btn.classList.add('recording'));
+      safeElementOperation(elements.sendVoiceBtn, (btn) => btn.classList.remove('hidden'));
       
       // Start timer
       updateVoiceTimer();
@@ -257,7 +461,7 @@ function startVoiceRecording() {
     })
     .catch(error => {
       console.error('Error accessing microphone:', error);
-      alert('Não foi possível acessar o microfone. Verifique as permissões.');
+      showToast('Não foi possível acessar o microfone. Verifique as permissões.', 'error');
     });
 }
 
@@ -293,9 +497,14 @@ function cancelVoiceRecording() {
 }
 
 async function sendVoiceMessage(audioBlob) {
-  if (!state.activeJid) return;
+  if (!state.activeJid) {
+    showToast('Selecione um contato primeiro', 'error');
+    return;
+  }
   
   try {
+    showToast('Enviando áudio...', 'info');
+    
     const formData = new FormData();
     formData.append('audio', audioBlob, 'voice.webm');
     
@@ -305,25 +514,44 @@ async function sendVoiceMessage(audioBlob) {
     });
     
     if (!response.ok) {
-      throw new Error('Failed to send voice message');
+      throw new Error('Falha ao enviar mensagem de voz');
     }
     
+    showToast('Áudio enviado com sucesso!', 'success');
+    
     // Reset timer
-    elements.voiceTimer.textContent = '00:00';
+    if (elements.voiceTimer) elements.voiceTimer.textContent = '00:00';
     hideAllMenus();
     
     // Refresh messages
     await loadMessages(state.activeJid);
   } catch (error) {
     console.error('Error sending voice message:', error);
-    alert('Erro ao enviar mensagem de voz');
+    showToast('Erro ao enviar mensagem de voz', 'error');
   }
 }
 
 async function handleFileUpload(file, type) {
-  if (!state.activeJid) return;
+  if (!state.activeJid) {
+    showToast('Selecione um contato primeiro', 'error');
+    return;
+  }
+  
+  if (!file) {
+    showToast('Selecione um arquivo', 'error');
+    return;
+  }
+  
+  // Validate file size (max 50MB)
+  const maxSize = 50 * 1024 * 1024; // 50MB
+  if (file.size > maxSize) {
+    showToast('Arquivo muito grande. Máximo 50MB', 'error');
+    return;
+  }
   
   try {
+    showToast(`Enviando ${file.name}...`, 'info', 10000);
+    
     const formData = new FormData();
     formData.append('media', file);
     
@@ -350,14 +578,16 @@ async function handleFileUpload(file, type) {
     });
     
     if (!response.ok) {
-      throw new Error('Failed to send media');
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'Falha ao enviar mídia');
     }
     
+    showToast(`${file.name} enviado com sucesso!`, 'success');
     hideAllMenus();
     await loadMessages(state.activeJid);
   } catch (error) {
     console.error('Error sending media:', error);
-    alert('Erro ao enviar mídia');
+    showToast(`Erro ao enviar ${file.name}: ${error.message}`, 'error');
   }
 }
 
@@ -414,8 +644,20 @@ function setupBusinessMessage(type) {
 }
 
 function autoResizeTextarea() {
-  elements.messageInput.style.height = 'auto';
-  elements.messageInput.style.height = Math.min(elements.messageInput.scrollHeight, 120) + 'px';
+  if (!elements.messageInput) return;
+  
+  safeElementOperation(elements.messageInput, (textarea) => {
+    const originalHeight = textarea.style.height;
+    textarea.style.height = 'auto';
+    
+    const newHeight = Math.min(textarea.scrollHeight, 120);
+    textarea.style.height = `${newHeight}px`;
+    
+    // Only scroll if height actually changed
+    if (originalHeight !== textarea.style.height) {
+      scrollToBottom(false);
+    }
+  });
 }
 
 function formatLastSeen(timestamp) {
@@ -570,7 +812,7 @@ function renderConnectionState(connectionState) {
   setConnectionStatus("Aguardando conexao...");
 }
 
-function getVisibleChats() {
+const getVisibleChats = () => {
   const query = (elements.chatSearchInput?.value || "").trim().toLowerCase();
 
   if (!query) {
@@ -582,57 +824,72 @@ function getVisibleChats() {
     const chatJid = (chat.jid || "").toLowerCase();
     return chatName.includes(query) || chatJid.includes(query);
   });
-}
+};
 
-function renderChats() {
+const renderChats = throttle(() => {
+  if (!elements.chatList) return;
+  
   const visibleChats = getVisibleChats();
 
   if (!state.chats.length) {
-    elements.chatList.innerHTML =
-      '<p class="empty-state">Sem conversas ainda.</p>';
+    elements.chatList.innerHTML = '<p class="empty-state">Sem conversas ainda.</p>';
     return;
   }
 
   if (!visibleChats.length) {
-    elements.chatList.innerHTML =
-      '<p class="empty-state">Nenhuma conversa encontrada para esse filtro.</p>';
+    elements.chatList.innerHTML = '<p class="empty-state">Nenhuma conversa encontrada para esse filtro.</p>';
     return;
   }
 
-  elements.chatList.innerHTML = visibleChats
-    .map((chat) => {
-      const activeClass = chat.jid === state.activeJid ? "active" : "";
-      const unread =
-        chat.unread > 0 ? `<span class="badge">${chat.unread}</span>` : "";
-      const chatTitle = escapeHtml(displayName(chat));
-      const chatPreview = escapeHtml(
-        chat.lastMessage || "Sem mensagens recentes",
-      );
-      const timeLabel = chat.lastTimestamp
-        ? formatTime(chat.lastTimestamp)
-        : "";
-      return `
-      <button class="chat-item ${activeClass}" data-jid="${encodeURIComponent(chat.jid)}">
-        <div class="chat-header-row">
-          <div class="chat-title">${chatTitle}</div>
-          <span class="chat-time">${timeLabel}</span>
-        </div>
-        <div class="chat-subline">
-          <span class="chat-preview">${chatPreview}</span>
-          ${unread}
-        </div>
-      </button>
+  // Use DocumentFragment for better performance
+  const fragment = document.createDocumentFragment();
+  
+  visibleChats.forEach((chat) => {
+    const activeClass = chat.jid === state.activeJid ? "active" : "";
+    const unread = chat.unread > 0 ? `<span class="badge">${chat.unread}</span>` : "";
+    const chatTitle = escapeHtml(displayName(chat));
+    const chatPreview = escapeHtml(chat.lastMessage || "Sem mensagens recentes");
+    const timeLabel = chat.lastTimestamp ? formatTime(chat.lastTimestamp) : "";
+    
+    const button = document.createElement('button');
+    button.className = `chat-item ${activeClass}`;
+    button.dataset.jid = encodeURIComponent(chat.jid);
+    button.setAttribute('aria-label', `Chat com ${chatTitle}`);
+    
+    button.innerHTML = `
+      <div class="chat-header-row">
+        <div class="chat-title">${chatTitle}</div>
+        <span class="chat-time">${timeLabel}</span>
+      </div>
+      <div class="chat-subline">
+        <span class="chat-preview">${chatPreview}</span>
+        ${unread}
+      </div>
     `;
-    })
-    .join("");
-
-  elements.chatList.querySelectorAll(".chat-item").forEach((node) => {
-    node.addEventListener("click", () => {
-      const jid = node.dataset.jid ? decodeURIComponent(node.dataset.jid) : "";
+    
+    // Use safe event listener
+    const eventKey = addEventListenerSafe(button, "click", () => {
+      const jid = decodeURIComponent(button.dataset.jid || "");
       selectChat(jid);
     });
+    
+    // Store event key for cleanup
+    button.dataset.eventKey = eventKey;
+    fragment.appendChild(button);
   });
-}
+  
+  // Clean up existing event listeners
+  const existingButtons = elements.chatList.querySelectorAll('.chat-item');
+  existingButtons.forEach(button => {
+    const eventKey = button.dataset.eventKey;
+    if (eventKey) {
+      removeEventListenerSafe(eventKey);
+    }
+  });
+  
+  elements.chatList.innerHTML = '';
+  elements.chatList.appendChild(fragment);
+}, 100);
 
 function mediaCacheKey(message) {
   return `${state.sessionId || ""}|${message?.jid || ""}|${message?.id || ""}`;
@@ -805,115 +1062,110 @@ function renderMessageBody(message) {
   return `<div class="message-text">${safeText || "(mensagem vazia)"}</div>`;
 }
 
-function renderMessages() {
+const renderMessages = throttle(() => {
+  if (!elements.messageList) return;
+  
   if (!state.activeJid) {
     elements.chatHeaderTitle.textContent = "Selecione uma conversa";
-    elements.chatHeaderSubtitle.textContent =
-      "Escolha um contato para abrir o historico.";
-    elements.messageList.innerHTML =
-      '<div class="message-empty">As mensagens aparecerao aqui.</div>';
+    elements.chatHeaderSubtitle.textContent = "Escolha um contato para abrir o historico.";
+    elements.messageList.innerHTML = '<div class="message-empty">As mensagens aparecerao aqui.</div>';
     return;
   }
 
   const chat = state.chats.find((item) => item.jid === state.activeJid);
-  const fallbackTitle =
-    state.activeJid.split("@")[0]?.split(":")[0]?.split("_")[0] ||
-    state.activeJid;
-  const lastSeenText = chat?.lastTimestamp
-    ? formatLastSeen(chat.lastTimestamp)
-    : "";
+  const fallbackTitle = state.activeJid.split("@")[0]?.split(":")[0]?.split("_")[0] || state.activeJid;
+  const lastSeenText = chat?.lastTimestamp ? formatLastSeen(chat.lastTimestamp) : "";
   const contactName = chat ? displayName(chat) : fallbackTitle;
 
-  elements.chatHeaderTitle.textContent = chat
-    ? displayName(chat)
-    : fallbackTitle;
-  elements.chatHeaderSubtitle.textContent = lastSeenText || state.activeJid;
-  elements.jidInput.value = state.activeJid;
+  // Update header
+  if (elements.chatHeaderTitle) elements.chatHeaderTitle.textContent = contactName;
+  if (elements.chatHeaderSubtitle) elements.chatHeaderSubtitle.textContent = lastSeenText || state.activeJid;
+  if (elements.jidInput) elements.jidInput.value = state.activeJid;
 
   if (!state.activeMessages.length) {
-    elements.messageList.innerHTML =
-      '<div class="message-empty">Nenhuma mensagem neste chat ainda.</div>';
+    elements.messageList.innerHTML = '<div class="message-empty">Nenhuma mensagem neste chat ainda.</div>';
     return;
   }
 
-  elements.messageList.innerHTML = state.activeMessages
-    .map((message) => {
-      const direction =
-        message.direction === "outbound" ? "outbound" : "inbound";
-      const editedTag = message.isEdited
-        ? '<span class="message-flag">editada</span>'
-        : "";
-      const status = messageStatusLabel(message);
-      const statusTag = status
-        ? `<span class="message-status">${status}</span>`
-        : "";
-      const fromGroupParticipant =
-        !message.fromMe &&
-        message.participant &&
-        message.participant !== message.jid
-          ? `<div class="message-participant">${escapeHtml(message.name || message.participant)}</div>`
-          : "";
-      const senderName = !message.fromMe
-        ? `<div class="message-sender">${escapeHtml(contactName)}</div>`
-        : `<div class="message-sender message-sender-me">Você</div>`;
-      const quoted = message.quoted?.text
-        ? `<blockquote class="message-quote">${escapeHtml(message.quoted.text)}</blockquote>`
-        : "";
-      const reactions =
-        Array.isArray(message.reactions) && message.reactions.length
-          ? `<div class="message-reactions">${message.reactions
-              .map(
-                (reaction) =>
-                  `<span>${escapeHtml(reaction.emoji || "")}</span>`,
-              )
-              .join("")}</div>`
-          : "";
+  // Use DocumentFragment for better performance
+  const fragment = document.createDocumentFragment();
+  const messageElements = new Map(); // Store references for event handling
+  
+  state.activeMessages.forEach((message) => {
+    const direction = message.direction === "outbound" ? "outbound" : "inbound";
+    const editedTag = message.isEdited ? '<span class="message-flag">editada</span>' : "";
+    const status = messageStatusLabel(message);
+    const statusTag = status ? `<span class="message-status">${status}</span>` : "";
+    const fromGroupParticipant = !message.fromMe && message.participant && message.participant !== message.jid
+      ? `<div class="message-participant">${escapeHtml(message.name || message.participant)}</div>`
+      : "";
+    const senderName = !message.fromMe
+      ? `<div class="message-sender">${escapeHtml(contactName)}</div>`
+      : `<div class="message-sender message-sender-me">Você</div>`;
+    const quoted = message.quoted?.text
+      ? `<blockquote class="message-quote">${escapeHtml(message.quoted.text)}</blockquote>`
+      : "";
+    const reactions = Array.isArray(message.reactions) && message.reactions.length
+      ? `<div class="message-reactions">${message.reactions
+          .map((reaction) => `<span>${escapeHtml(reaction.emoji || "")}</span>`)
+          .join("")}</div>`
+      : "";
 
-      return `
-        <article class="message ${direction}" data-message-id="${escapeHtml(message.id)}">
-          ${fromGroupParticipant}
-          ${!message.fromMe || message.participant ? senderName : ""}
-          ${quoted}
-          ${renderMessageBody(message)}
-          ${reactions}
-          <div class="message-meta">
-            ${editedTag}
-            <span class="message-time">${formatTime(message.timestamp)}</span>
-            ${statusTag}
-          </div>
-        </article>
-      `;
-    })
-    .join("");
-
-  elements.messageList.querySelectorAll(".load-media-btn").forEach((button) => {
+    const article = document.createElement('article');
+    article.className = `message ${direction}`;
+    article.dataset.messageId = escapeHtml(message.id);
+    article.setAttribute('aria-label', `Message from ${message.fromMe ? 'you' : contactName}`);
+    
+    article.innerHTML = `
+      ${fromGroupParticipant}
+      ${!message.fromMe || message.participant ? senderName : ""}
+      ${quoted}
+      ${renderMessageBody(message)}
+      ${reactions}
+      <div class="message-meta">
+        ${editedTag}
+        <span class="message-time">${formatTime(message.timestamp)}</span>
+        ${statusTag}
+      </div>
+    `;
+    
+    // Store reference for event handling
+    messageElements.set(message.id, article);
+    fragment.appendChild(article);
+  });
+  
+  elements.messageList.innerHTML = '';
+  elements.messageList.appendChild(fragment);
+  
+  // Add event listeners after DOM is ready
+  const loadMediaButtons = elements.messageList.querySelectorAll('.load-media-btn');
+  loadMediaButtons.forEach((button) => {
     button.addEventListener("click", async (event) => {
       event.stopPropagation();
       const messageId = button.dataset.messageId;
-      const message = state.activeMessages.find(
-        (item) => item.id === messageId,
-      );
-
-      if (!message) {
-        return;
+      const message = state.activeMessages.find((item) => item.id === messageId);
+      
+      if (message) {
+        button.disabled = true;
+        button.textContent = 'Carregando...';
+        await ensureMediaLoaded(message);
+        renderMessages();
       }
-
-      await ensureMediaLoaded(message);
-      renderMessages();
     });
   });
 
-  elements.messageList.querySelectorAll(".message").forEach((node) => {
+  const messageNodes = elements.messageList.querySelectorAll('.message');
+  messageNodes.forEach((node) => {
     node.addEventListener("click", () => {
       const messageId = node.dataset.messageId || "";
       state.selectedMessageId = messageId;
-      elements.reactionMessageId.value = messageId;
-      elements.jidInput.value = state.activeJid || elements.jidInput.value;
+      if (elements.reactionMessageId) elements.reactionMessageId.value = messageId;
+      if (elements.jidInput) elements.jidInput.value = state.activeJid || elements.jidInput.value;
     });
   });
-
-  elements.messageList.scrollTop = elements.messageList.scrollHeight;
-}
+  
+  scrollToBottom(false);
+}, 100);
 
 function scrollToBottom(smooth = true) {
   elements.messageList.scrollTo({
@@ -936,59 +1188,62 @@ async function callApi(url, options = {}) {
   return response.json();
 }
 
-async function loadChats() {
+const loadChats = debounce(async () => {
   if (!state.sessionId) return;
 
-  const data = await callApi(
-    `/session/${encodeURIComponent(state.sessionId)}/chats`,
-  );
-  state.chats = Array.isArray(data.chats) ? data.chats : [];
-  let shouldRenderMessages = !state.activeJid;
+  try {
+    const data = await callApi(`/session/${encodeURIComponent(state.sessionId)}/chats`);
+    state.chats = Array.isArray(data.chats) ? data.chats : [];
+    let shouldRenderMessages = !state.activeJid;
 
-  if (state.activeJid) {
-    const hasActiveChat = state.chats.some(
-      (chat) => chat.jid === state.activeJid,
-    );
-    if (!hasActiveChat) {
-      state.activeJid = null;
-      state.activeMessages = [];
-      state.activeMessagesSignature = "0";
-      shouldRenderMessages = true;
+    if (state.activeJid) {
+      const hasActiveChat = state.chats.some((chat) => chat.jid === state.activeJid);
+      if (!hasActiveChat) {
+        state.activeJid = null;
+        state.activeMessages = [];
+        state.activeMessagesSignature = "0";
+        shouldRenderMessages = true;
+      }
     }
+
+    renderChats();
+
+    if (shouldRenderMessages) {
+      renderMessages();
+    }
+  } catch (error) {
+    console.error('Error loading chats:', error);
+    showToast('Erro ao carregar conversas', 'error');
   }
+}, 500);
 
-  renderChats();
-
-  if (shouldRenderMessages) {
-    renderMessages();
-  }
-}
-
-async function selectChat(jid) {
+const selectChat = debounce(async (jid) => {
   if (!state.sessionId || !jid) return;
 
-  const data = await callApi(
-    `/session/${encodeURIComponent(state.sessionId)}/messages/${encodeURIComponent(jid)}`,
-  );
-  const resolvedJid = data?.jid || jid;
-  const nextMessages = Array.isArray(data.messages) ? data.messages : [];
-  const nextSignature = messagesSignature(nextMessages);
-  const isSameChat = state.activeJid === resolvedJid;
-  const hasChanged =
-    !isSameChat || state.activeMessagesSignature !== nextSignature;
+  try {
+    const data = await callApi(`/session/${encodeURIComponent(state.sessionId)}/messages/${encodeURIComponent(jid)}`);
+    const resolvedJid = data?.jid || jid;
+    const nextMessages = Array.isArray(data.messages) ? data.messages : [];
+    const nextSignature = messagesSignature(nextMessages);
+    const isSameChat = state.activeJid === resolvedJid;
+    const hasChanged = !isSameChat || state.activeMessagesSignature !== nextSignature;
 
-  state.activeJid = resolvedJid;
+    state.activeJid = resolvedJid;
 
-  if (hasChanged) {
-    state.activeMessages = nextMessages;
-    state.activeMessagesSignature = nextSignature;
-    renderMessages();
-    hydrateMediaForActiveMessages().catch((error) => console.error(error));
+    if (hasChanged) {
+      state.activeMessages = nextMessages;
+      state.activeMessagesSignature = nextSignature;
+      renderMessages();
+      hydrateMediaForActiveMessages().catch((error) => console.error(error));
+    }
+
+    // Atualiza a lista de chats para marcar como lido
+    renderChats();
+  } catch (error) {
+    console.error('Error selecting chat:', error);
+    showToast('Erro ao carregar mensagens', 'error');
   }
-
-  // Atualiza a lista de chats para marcar como lido
-  renderChats();
-}
+}, 200);
 
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -1036,7 +1291,7 @@ async function sendMessage(event) {
   event.preventDefault();
 
   if (!state.sessionId) {
-    alert("Conecte uma sessao primeiro");
+    showToast('Conecte uma sessão primeiro', 'error');
     return;
   }
 
@@ -1045,19 +1300,16 @@ async function sendMessage(event) {
   const text = elements.messageInput.value.trim();
 
   if (!jid) {
-    alert("Selecione um contato ou informe um JID");
+    showToast('Selecione um contato ou informe um JID', 'error');
     return;
   }
 
   if (!text && type !== 'interactive') {
-    alert("Digite uma mensagem");
+    showToast('Digite uma mensagem', 'error');
     return;
   }
 
-  const payload = {
-    jid,
-    type,
-  };
+  const payload = { jid, type };
 
   if (type === "text") {
     payload.text = text;
@@ -1072,7 +1324,7 @@ async function sendMessage(event) {
     const fileNameFromInput = elements.fileNameInput.value.trim();
 
     if (!file && !mediaUrl) {
-      alert("Selecione um arquivo ou informe uma URL de midia");
+      showToast('Selecione um arquivo ou informe uma URL de mídia', 'error');
       return;
     }
 
@@ -1091,19 +1343,15 @@ async function sendMessage(event) {
   }
 
   if (type === "reaction") {
-    const messageId =
-      elements.reactionMessageId.value.trim() || state.selectedMessageId;
+    const messageId = elements.reactionMessageId.value.trim() || state.selectedMessageId;
     const emoji = elements.reactionEmoji.value.trim();
 
     if (!messageId) {
-      alert("Selecione uma mensagem no chat para reagir");
+      showToast('Selecione uma mensagem no chat para reagir', 'error');
       return;
     }
 
-    payload.reaction = {
-      messageId,
-      emoji,
-    };
+    payload.reaction = { messageId, emoji };
   }
 
   if (type === "interactive") {
@@ -1116,7 +1364,7 @@ async function sendMessage(event) {
       try {
         interactivePayload = JSON.parse(raw);
       } catch {
-        alert("JSON interativo invalido");
+        showToast('JSON interativo inválido', 'error');
         return;
       }
     }
@@ -1124,20 +1372,32 @@ async function sendMessage(event) {
     payload.interactive = interactivePayload;
   }
 
-  await callApi(`/session/${encodeURIComponent(state.sessionId)}/messages`, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  try {
+    const restoreSendBtn = showLoadingState(elements.sendBtn, 'Enviando...');
+    
+    await callApi(`/session/${encodeURIComponent(state.sessionId)}/messages`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
 
-  elements.messageInput.value = "";
-  elements.messageInput.style.height = 'auto';
-  if (type === "media" || type === "sticker") {
-    elements.mediaUrlInput.value = "";
-    elements.mediaFileInput.value = "";
+    elements.messageInput.value = '';
+    elements.messageInput.style.height = 'auto';
+    
+    if (type === "media" || type === "sticker") {
+      elements.mediaUrlInput.value = '';
+      elements.mediaFileInput.value = '';
+    }
+
+    await loadChats();
+    await selectChat(jid);
+    
+    showToast('Mensagem enviada com sucesso!', 'success');
+  } catch (error) {
+    console.error('Error sending message:', error);
+    showToast('Erro ao enviar mensagem', 'error');
+  } finally {
+    restoreSendBtn?.();
   }
-
-  await loadChats();
-  await selectChat(jid);
 }
 
 async function getConnectionState(sessionId) {
@@ -1442,19 +1702,16 @@ function addTestMessage(content, sender, isError = false) {
   elements.testChatMessages.scrollTop = elements.testChatMessages.scrollHeight;
 }
 
-async function loadMessages(jid) {
+const loadMessages = debounce(async (jid) => {
   if (!state.sessionId || !jid) return;
 
   try {
-    const data = await callApi(
-      `/session/${encodeURIComponent(state.sessionId)}/messages/${encodeURIComponent(jid)}`,
-    );
+    const data = await callApi(`/session/${encodeURIComponent(state.sessionId)}/messages/${encodeURIComponent(jid)}`);
     const resolvedJid = data?.jid || jid;
     const nextMessages = Array.isArray(data.messages) ? data.messages : [];
     const nextSignature = messagesSignature(nextMessages);
     const isSameChat = state.activeJid === resolvedJid;
-    const hasChanged =
-      !isSameChat || state.activeMessagesSignature !== nextSignature;
+    const hasChanged = !isSameChat || state.activeMessagesSignature !== nextSignature;
 
     state.activeJid = resolvedJid;
 
@@ -1466,8 +1723,9 @@ async function loadMessages(jid) {
     }
   } catch (error) {
     console.error('Error loading messages:', error);
+    showToast('Erro ao carregar mensagens', 'error');
   }
-}
+}, 300);
 
 // Adiciona uma nova mensagem ao chat atual sem recarregar tudo
 function appendNewMessage(message) {
@@ -1695,216 +1953,222 @@ function showNotification(message, type = 'info') {
 }
 
 async function boot() {
-  renderMessages();
-  setConnectionVisual("idle");
+  try {
+    renderMessages();
+    setConnectionVisual("idle");
 
-  // Connection
-  elements.connectBtn.addEventListener("click", async () => {
-    const sessionId = elements.sessionInput.value.trim();
-    if (!sessionId) return;
+    // Connection
+    addEventListenerSafe(elements.connectBtn, "click", async () => {
+      const sessionId = elements.sessionInput.value.trim();
+      if (!sessionId) return;
 
-    try {
-      await startSessionConnection(sessionId);
-    } catch (error) {
-      alert(error.message);
-    }
-  });
-
-  // Message input auto-resize
-  elements.messageInput.addEventListener("input", () => {
-    autoResizeTextarea();
-  });
-
-  // Send message
-  elements.sendBtn.addEventListener("click", async (event) => {
-    event.preventDefault();
-    try {
-      await sendMessage(event);
-    } catch (error) {
-      alert(error.message);
-    }
-  });
-
-  // Enter to send (Shift+Enter for new line)
-  elements.messageInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      elements.sendBtn.click();
-    }
-  });
-
-  // Emoji picker
-  elements.emojiBtn.addEventListener("click", showEmojiPicker);
-  elements.closeEmojiBtn.addEventListener("click", hideAllMenus);
-
-  // Emoji categories
-  document.querySelectorAll('.emoji-category').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.emoji-category').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentEmojiCategory = btn.dataset.category;
-      renderEmojiGrid(currentEmojiCategory);
+      await handleAsyncError(startSessionConnection(sessionId));
     });
-  });
 
-  // Attach menu
-  elements.attachBtn.addEventListener("click", showAttachMenu);
-  elements.closeAttachBtn.addEventListener("click", hideAllMenus);
+    // Message input auto-resize
+    addEventListenerSafe(elements.messageInput, "input", () => {
+      autoResizeTextarea();
+    });
 
-  // File uploads
-  elements.attachImageBtn.addEventListener("click", () => {
-    elements.imageFileInput.click();
-  });
+    // Send message
+    addEventListenerSafe(elements.sendBtn, "click", async (event) => {
+      event.preventDefault();
+      await handleAsyncError(sendMessage(event));
+    });
 
-  elements.attachVideoBtn.addEventListener("click", () => {
-    elements.videoFileInput.click();
-  });
+    // Enter to send (Shift+Enter for new line)
+    addEventListenerSafe(elements.messageInput, "keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        elements.sendBtn.click();
+      }
+    });
 
-  elements.attachDocumentBtn.addEventListener("click", () => {
-    elements.documentFileInput.click();
-  });
+    // Emoji picker
+    addEventListenerSafe(elements.emojiBtn, "click", showEmojiPicker);
+    addEventListenerSafe(elements.closeEmojiBtn, "click", hideAllMenus);
 
-  elements.attachAudioBtn.addEventListener("click", () => {
-    elements.audioFileInput.click();
-  });
+    // Emoji categories
+    document.querySelectorAll('.emoji-category').forEach(btn => {
+      addEventListenerSafe(btn, 'click', () => {
+        document.querySelectorAll('.emoji-category').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentEmojiCategory = btn.dataset.category;
+        renderEmojiGrid(currentEmojiCategory);
+      });
+    });
 
-  elements.imageFileInput.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (file) handleFileUpload(file, 'image');
-  });
+    // Attach menu
+    addEventListenerSafe(elements.attachBtn, "click", showAttachMenu);
+    addEventListenerSafe(elements.closeAttachBtn, "click", hideAllMenus);
 
-  elements.videoFileInput.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (file) handleFileUpload(file, 'video');
-  });
+    // File uploads
+    addEventListenerSafe(elements.attachImageBtn, "click", () => {
+      elements.imageFileInput.click();
+    });
 
-  elements.documentFileInput.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (file) handleFileUpload(file, 'document');
-  });
+    addEventListenerSafe(elements.attachVideoBtn, "click", () => {
+      elements.videoFileInput.click();
+    });
 
-  elements.audioFileInput.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (file) handleFileUpload(file, 'audio');
-  });
+    addEventListenerSafe(elements.attachDocumentBtn, "click", () => {
+      elements.documentFileInput.click();
+    });
 
-  // Voice recording
-  elements.voiceBtn.addEventListener("mousedown", startVoiceRecording);
-  elements.voiceBtn.addEventListener("mouseup", stopVoiceRecording);
-  elements.voiceBtn.addEventListener("mouseleave", stopVoiceRecording);
-  elements.voiceBtn.addEventListener("touchstart", (e) => {
-    e.preventDefault();
-    startVoiceRecording();
-  });
-  elements.voiceBtn.addEventListener("touchend", (e) => {
-    e.preventDefault();
-    stopVoiceRecording();
-  });
+    addEventListenerSafe(elements.attachAudioBtn, "click", () => {
+      elements.audioFileInput.click();
+    });
 
-  elements.cancelVoiceBtn.addEventListener("click", cancelVoiceRecording);
-  elements.sendVoiceBtn.addEventListener("click", () => {
-    stopVoiceRecording();
-  });
+    addEventListenerSafe(elements.imageFileInput, "change", (e) => {
+      const file = e.target.files[0];
+      if (file) handleAsyncError(handleFileUpload(file, 'image'));
+    });
 
-  // Business options
-  elements.businessToggleBtn.addEventListener("click", showBusinessOptions);
-  elements.closeBusinessBtn.addEventListener("click", hideAllMenus);
+    addEventListenerSafe(elements.videoFileInput, "change", (e) => {
+      const file = e.target.files[0];
+      if (file) handleAsyncError(handleFileUpload(file, 'video'));
+    });
 
-  elements.interactiveBtn.addEventListener("click", () => {
-    setupBusinessMessage('interactive');
-  });
+    addEventListenerSafe(elements.documentFileInput, "change", (e) => {
+      const file = e.target.files[0];
+      if (file) handleAsyncError(handleFileUpload(file, 'document'));
+    });
 
-  elements.listBtn.addEventListener("click", () => {
-    setupBusinessMessage('list');
-  });
+    addEventListenerSafe(elements.audioFileInput, "change", (e) => {
+      const file = e.target.files[0];
+      if (file) handleAsyncError(handleFileUpload(file, 'audio'));
+    });
 
-  elements.locationBtn.addEventListener("click", () => {
-    setupBusinessMessage('location');
-  });
+    // Voice recording
+    addEventListenerSafe(elements.voiceBtn, "mousedown", startVoiceRecording);
+    addEventListenerSafe(elements.voiceBtn, "mouseup", stopVoiceRecording);
+    addEventListenerSafe(elements.voiceBtn, "mouseleave", stopVoiceRecording);
+    addEventListenerSafe(elements.voiceBtn, "touchstart", (e) => {
+      e.preventDefault();
+      startVoiceRecording();
+    });
+    addEventListenerSafe(elements.voiceBtn, "touchend", (e) => {
+      e.preventDefault();
+      stopVoiceRecording();
+    });
 
-  elements.productBtn.addEventListener("click", () => {
-    setupBusinessMessage('product');
-  });
+    addEventListenerSafe(elements.cancelVoiceBtn, "click", cancelVoiceRecording);
+    addEventListenerSafe(elements.sendVoiceBtn, "click", () => {
+      stopVoiceRecording();
+    });
 
-  // Chat search
-  elements.chatSearchInput.addEventListener("input", () => {
-    renderChats();
-  });
+    // Business options
+    addEventListenerSafe(elements.businessToggleBtn, "click", showBusinessOptions);
+    addEventListenerSafe(elements.closeBusinessBtn, "click", hideAllMenus);
 
-  // Google AI API Key debounce for loading models
-  let googleAiKeyTimeout;
-  elements.googleAiApiKey.addEventListener("input", () => {
-    clearTimeout(googleAiKeyTimeout);
-    const apiKey = elements.googleAiApiKey.value.trim();
-    
-    if (apiKey.length > 10) { // Only trigger if API key seems complete
-      googleAiKeyTimeout = setTimeout(() => {
-        loadGoogleAIModels();
-      }, 1500); // Wait 1.5 seconds after user stops typing
-    }
-  });
+    addEventListenerSafe(elements.interactiveBtn, "click", () => {
+      setupBusinessMessage('interactive');
+    });
 
-  // Refresh chats
-  elements.refreshChatsBtn?.addEventListener("click", async () => {
-    try {
-      await loadChats();
+    addEventListenerSafe(elements.listBtn, "click", () => {
+      setupBusinessMessage('list');
+    });
+
+    addEventListenerSafe(elements.locationBtn, "click", () => {
+      setupBusinessMessage('location');
+    });
+
+    addEventListenerSafe(elements.productBtn, "click", () => {
+      setupBusinessMessage('product');
+    });
+
+    // Chat search
+    addEventListenerSafe(elements.chatSearchInput, "input", () => {
+      debouncedSearch();
+    });
+
+    // Google AI API Key debounce for loading models
+    let googleAiKeyTimeout;
+    addEventListenerSafe(elements.googleAiApiKey, "input", () => {
+      clearTimeout(googleAiKeyTimeout);
+      const apiKey = elements.googleAiApiKey.value.trim();
+      
+      if (apiKey.length > 10) { // Only trigger if API key seems complete
+        googleAiKeyTimeout = setTimeout(() => {
+          handleAsyncError(loadGoogleAIModels());
+        }, 1500); // Wait 1.5 seconds after user stops typing
+      }
+    });
+
+    // Refresh chats
+    addEventListenerSafe(elements.refreshChats, "click", async () => {
+      await handleAsyncError(loadChats());
       if (state.activeJid) {
-        await selectChat(state.activeJid);
+        await handleAsyncError(selectChat(state.activeJid));
       }
       scrollToBottom(false);
-    } catch (error) {
-      console.error(error);
-    }
-  });
-
-  // AI Configuration Modal
-  elements.aiConfigBtn.addEventListener("click", showAiConfigModal);
-  elements.closeAiConfigBtn.addEventListener("click", hideAiConfigModal);
-  elements.cancelAiConfigBtn.addEventListener("click", hideAiConfigModal);
-  elements.saveAiConfigBtn.addEventListener("click", saveAiConfig);
-  elements.testChatSendBtn.addEventListener("click", sendTestMessage);
-  elements.testChatInput.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") {
-      sendTestMessage();
-    }
-  });
-  
-  // Group Settings toggle
-  elements.groupAiEnabled.addEventListener("change", (e) => {
-    toggleGroupOptions(e.target.checked);
-  });
-  elements.testGoogleAiBtn.addEventListener("click", testGoogleAiConnection);
-
-  // AI Toggle
-  elements.aiToggleBtn.addEventListener("click", toggleAI);
-
-  // AI Provider switch
-  elements.aiProviderRadios.forEach(radio => {
-    radio.addEventListener("change", (e) => {
-      switchAiProvider(e.target.value);
     });
-  });
 
-  // Close menus when clicking outside
-  document.addEventListener("click", (event) => {
-    if (!event.target.closest('.message-composer') && !event.target.closest('.modal')) {
-      hideAllMenus();
+    // AI Configuration Modal
+    addEventListenerSafe(elements.aiConfigBtn, "click", showAiConfigModal);
+    addEventListenerSafe(elements.closeAiConfigBtn, "click", hideAiConfigModal);
+    addEventListenerSafe(elements.cancelAiConfigBtn, "click", hideAiConfigModal);
+    addEventListenerSafe(elements.saveAiConfigBtn, "click", () => {
+      handleAsyncError(saveAiConfig());
+    });
+    addEventListenerSafe(elements.testChatSendBtn, "click", () => {
+      handleAsyncError(sendTestMessage());
+    });
+    addEventListenerSafe(elements.testChatInput, "keypress", (e) => {
+      if (e.key === "Enter") {
+        handleAsyncError(sendTestMessage());
+      }
+    });
+    
+    // Group Settings toggle
+    addEventListenerSafe(elements.groupAiEnabled, "change", (e) => {
+      toggleGroupOptions(e.target.checked);
+    });
+    addEventListenerSafe(elements.testGoogleAiBtn, "click", () => {
+      handleAsyncError(testGoogleAiConnection());
+    });
+
+    // AI Toggle
+    addEventListenerSafe(elements.aiToggleBtn, "click", () => {
+      handleAsyncError(toggleAI());
+    });
+
+    // AI Provider switch
+    elements.aiProviderRadios.forEach(radio => {
+      addEventListenerSafe(radio, "change", (e) => {
+        switchAiProvider(e.target.value);
+      });
+    });
+
+    // Close menus when clicking outside
+    addEventListenerSafe(document, "click", (event) => {
+      if (!event.target.closest('.message-composer') && !event.target.closest('.modal')) {
+        hideAllMenus();
+      }
+    });
+
+    // Auto-start session
+    const sessions = await handleAsyncError(callApi("/sessions"));
+    if (sessions) {
+      const preferredSessionId =
+        sessions.active?.[0] ||
+        sessions.stored?.[0] ||
+        elements.sessionInput.value.trim() ||
+        "default";
+      elements.sessionInput.value = preferredSessionId;
+      await handleAsyncError(startSessionConnection(preferredSessionId));
     }
-  });
-
-  // Auto-start session
-  try {
-    const sessions = await callApi("/sessions");
-    const preferredSessionId =
-      sessions.active?.[0] ||
-      sessions.stored?.[0] ||
-      elements.sessionInput.value.trim() ||
-      "default";
-    elements.sessionInput.value = preferredSessionId;
-    await startSessionConnection(preferredSessionId);
   } catch (error) {
-    console.error(error);
+    console.error('Boot error:', error);
+    showToast('Erro ao inicializar aplicação', 'error');
   }
 }
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+  removeAllEventListeners();
+  stopHistoryRefresh();
+  stopConnectionPolling();
+});
 
 boot();
