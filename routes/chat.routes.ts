@@ -1,12 +1,18 @@
 import { Router } from "express";
 import { WhatsAppService } from "../modules/whatsapp/whatsapp.service";
 import { ChatStore } from "../modules/chat/chat.store";
+import { authenticateToken, AuthenticatedRequest } from "../middleware/auth.middleware";
 
 const router = Router();
 
 // LISTAR CHATS
-router.get("/session/:id/chats", (req, res) => {
+router.get("/session/:id/chats", authenticateToken, (req: AuthenticatedRequest, res) => {
   const { id } = req.params;
+
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: "ID de sessão inválido" });
+  }
+
   const session = WhatsAppService.getSession(id);
 
   if (!session) {
@@ -17,8 +23,13 @@ router.get("/session/:id/chats", (req, res) => {
 });
 
 // INFORMACOES DO CONTATO
-router.get("/session/:id/contacts/:jid", (req, res) => {
+router.get("/session/:id/contacts/:jid", authenticateToken, (req: AuthenticatedRequest, res) => {
   const { id, jid } = req.params;
+
+  if (typeof id !== 'string' || typeof jid !== 'string') {
+    return res.status(400).json({ error: "Parâmetros inválidos" });
+  }
+
   const session = WhatsAppService.getSession(id);
 
   if (!session) {

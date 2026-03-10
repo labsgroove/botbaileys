@@ -9,7 +9,84 @@ const state = {
   connectionInterval: null,
   mediaCache: new Map(),
   pendingMedia: new Set(),
+  currentUser: null,
+  accessToken: null,
 };
+
+// Logout function
+function logout() {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('user');
+  window.location.href = '/auth';
+}
+
+// Check authentication
+async function checkAuthentication() {
+  const accessToken = localStorage.getItem('accessToken');
+  const refreshToken = localStorage.getItem('refreshToken');
+  const userStr = localStorage.getItem('user');
+
+  if (!accessToken || !refreshToken || !userStr) {
+    window.location.href = '/auth';
+    return;
+  }
+
+  try {
+    // Verify token is still valid
+    const response = await fetch('/api/auth/me', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        // Try to refresh token
+        const refreshResponse = await fetch('/api/auth/refresh', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ refreshToken })
+        });
+
+        if (!refreshResponse.ok) {
+          throw new Error('Token refresh failed');
+        }
+
+        const refreshData = await refreshResponse.json();
+        localStorage.setItem('accessToken', refreshData.tokens.accessToken);
+        localStorage.setItem('refreshToken', refreshData.tokens.refreshToken);
+        state.accessToken = refreshData.tokens.accessToken;
+      } else {
+        throw new Error('Authentication failed');
+      }
+    } else {
+      state.accessToken = accessToken;
+    }
+
+    // Get user data
+    const userResponse = await fetch('/api/auth/me', {
+      headers: {
+        'Authorization': `Bearer ${state.accessToken}`
+      }
+    });
+
+    if (userResponse.ok) {
+      const userData = await userResponse.json();
+      state.currentUser = userData.user;
+    }
+
+  } catch (error) {
+    console.error('Authentication error:', error);
+    // Clear auth and redirect to login
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    window.location.href = '/auth';
+  }
+}
 
 const elements = {
   connectScreen: document.getElementById("connect-screen"),
@@ -36,6 +113,7 @@ const elements = {
   businessToggleBtn: document.getElementById("business-toggle-btn"),
   aiConfigBtn: document.getElementById("ai-config-btn"),
   aiToggleBtn: document.getElementById("ai-toggle-btn"),
+  logoutBtn: document.getElementById("logout-btn"),
   // Hidden inputs
   jidInput: document.getElementById("jid-input"),
   messageType: document.getElementById("message-type"),
@@ -1175,8 +1253,15 @@ function scrollToBottom(smooth = true) {
 }
 
 async function callApi(url, options = {}) {
+  const headers = { "Content-Type": "application/json" };
+  
+  // Add authentication header if available
+  if (state.accessToken) {
+    headers["Authorization"] = `Bearer ${state.accessToken}`;
+  }
+  
   const response = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
+    headers,
     ...options,
   });
 
@@ -2096,12 +2181,19 @@ async function boot() {
     });
 
     // Refresh chats
-    addEventListenerSafe(elements.refreshChats, "click", async () => {
+    addEventListenerSafe(elements.refreshChatsBtn, "click", async () => {
       await handleAsyncError(loadChats());
       if (state.activeJid) {
         await handleAsyncError(selectChat(state.activeJid));
       }
       scrollToBottom(false);
+    });
+
+    // Logout
+    addEventListenerSafe(elements.logoutBtn, "click", () => {
+      if (confirm('Tem certeza que deseja sair?')) {
+        logout();
+      }
     });
 
     // AI Configuration Modal
@@ -2147,16 +2239,30 @@ async function boot() {
       }
     });
 
-    // Auto-start session
-    const sessions = await handleAsyncError(callApi("/sessions"));
-    if (sessions) {
-      const preferredSessionId =
-        sessions.active?.[0] ||
-        sessions.stored?.[0] ||
-        elements.sessionInput.value.trim() ||
-        "default";
-      elements.sessionInput.value = preferredSessionId;
-      await handleAsyncError(startSessionConnection(preferredSessionId));
+    // Check authentication first
+    await checkAuthentication();
+
+    // Get user's unique session ID
+    const userData = await handleAsyncError(callApi("/api/auth/me"));
+    if (userData && userData.sessionId) {
+      state.sessionId = userData.sessionId;
+      elements.sessionInput.value = userData.sessionId;
+      elements.sessionLabel.textContent = `Usuário: ${userData.user.username} | Sessão: ${userData.sessionId}`;
+      
+      // Auto-start session with user's unique session ID
+      await handleAsyncError(startSessionConnection(userData.sessionId));
+    } else {
+      // Fallback to original logic
+      const sessions = await handleAsyncError(callApi("/sessions"));
+      if (sessions) {
+        const preferredSessionId =
+          sessions.active?.[0] ||
+          sessions.stored?.[0] ||
+          elements.sessionInput.value.trim() ||
+          state.currentUser?.username || "default";
+        elements.sessionInput.value = preferredSessionId;
+        await handleAsyncError(startSessionConnection(preferredSessionId));
+      }
     }
   } catch (error) {
     console.error('Boot error:', error);

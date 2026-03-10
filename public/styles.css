@@ -17,6 +17,119 @@
     --font-copy: "IBM Plex Sans", "Trebuchet MS", "Segoe UI", sans-serif;
 }
 
+/* Auth Form Styles */
+.auth-form {
+    width: 100%;
+    max-width: 400px;
+}
+
+.auth-form-element {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.auth-btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-family: var(--font-ui);
+    font-weight: 600;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 8px;
+}
+
+.auth-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(60, 209, 173, 0.3);
+}
+
+.auth-btn:active {
+    transform: translateY(0);
+}
+
+.auth-switch {
+    margin-top: 24px;
+    text-align: center;
+}
+
+.auth-switch p {
+    color: var(--text-muted);
+    font-family: var(--font-copy);
+    font-size: 14px;
+}
+
+.auth-switch a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s ease;
+}
+
+.auth-switch a:hover {
+    color: var(--accent-strong);
+}
+
+.auth-status {
+    margin-top: 20px;
+    min-height: 60px;
+}
+
+.auth-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--text-muted);
+    font-family: var(--font-copy);
+    font-size: 14px;
+}
+
+.loading-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border-soft);
+    border-top: 2px solid var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.auth-error {
+    background: rgba(255, 125, 116, 0.1);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    padding: 12px;
+    border-radius: 8px;
+    font-family: var(--font-copy);
+    font-size: 14px;
+    text-align: center;
+}
+
+.auth-success {
+    background: rgba(60, 209, 173, 0.1);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 12px;
+    border-radius: 8px;
+    font-family: var(--font-copy);
+    font-size: 14px;
+    text-align: center;
+}
+
+.hidden {
+    display: none !important;
+}
+
 /* Toast Notifications */
 .toast {
     position: fixed;

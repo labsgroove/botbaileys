@@ -1,10 +1,16 @@
 import { Router } from 'express'
 import { WhatsAppService } from '../modules/whatsapp/whatsapp.service'
+import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.middleware'
 
 const router = Router()
 
-router.post('/session/:id', async (req, res) => {
+router.post('/session/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
   const { id } = req.params
+  const userId = req.user?.id
+
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: 'ID de sessão inválido' })
+  }
 
   await WhatsAppService.initSession(id)
 
@@ -14,15 +20,19 @@ router.post('/session/:id', async (req, res) => {
   })
 })
 
-router.get('/sessions', (req, res) => {
+router.get('/sessions', authenticateToken, (req: AuthenticatedRequest, res) => {
   res.json({
     active: WhatsAppService.listSessions(),
     stored: WhatsAppService.listStoredSessions()
   })
 })
 
-router.get('/session/:id/status', (req, res) => {
+router.get('/session/:id/status', authenticateToken, (req: AuthenticatedRequest, res) => {
   const { id } = req.params
+
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: 'ID de sessão inválido' })
+  }
 
   res.json({
     id,
