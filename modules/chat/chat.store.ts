@@ -340,6 +340,10 @@ function mergeMessage(existing: ChatMessage, incoming: Partial<ChatMessage>) {
       ...incoming.reaction,
     };
   }
+
+  if (incoming.raw) {
+    existing.raw = incoming.raw;
+  }
 }
 
 function shouldCreateChatForMessage(message: SessionMessage): boolean {
@@ -383,6 +387,7 @@ function upsertMessage(
     quoted?: MessageQuote;
     isEdited?: boolean;
     isDeleted?: boolean;
+    raw?: any;
   },
   options: { countUnread?: boolean } = {},
 ) {
@@ -430,6 +435,7 @@ function upsertMessage(
       quoted: payload.quoted,
       isEdited: payload.isEdited,
       isDeleted: payload.isDeleted,
+      raw: payload.raw,
     });
   } else {
     chat.messages.push({
@@ -450,6 +456,7 @@ function upsertMessage(
       reaction: payload.reaction,
       interactive: payload.interactive,
       quoted: payload.quoted,
+      raw: payload.raw,
       reactions: [],
     });
   }
@@ -635,6 +642,7 @@ export class ChatStore {
       rawType?: string;
       isEdited?: boolean;
       isDeleted?: boolean;
+      raw?: any;
     },
   ) {
     upsertMessage(
@@ -668,6 +676,7 @@ export class ChatStore {
       rawType?: string;
       isEdited?: boolean;
       isDeleted?: boolean;
+      raw?: any;
     },
   ) {
     upsertMessage(
@@ -702,6 +711,7 @@ export class ChatStore {
       rawType?: string;
       isEdited?: boolean;
       isDeleted?: boolean;
+      raw?: any;
     },
   ) {
     // Usa a mesma função upsertMessage para histórico, garantindo consistência

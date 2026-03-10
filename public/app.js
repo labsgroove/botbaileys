@@ -1011,7 +1011,15 @@ async function ensureMediaLoaded(message) {
     state.mediaCache.set(cacheKey, payload);
     return payload;
   } catch (error) {
-    console.error(error);
+    console.error(`[MEDIA ERROR] Failed to load media for message ${message.id} from ${message.jid}:`, error);
+    console.error(`[MEDIA ERROR] Message details:`, {
+      id: message.id,
+      jid: message.jid,
+      type: message.type,
+      hasMedia: !!message.media,
+      mediaKey: message.media?.mediaKey,
+      mimetype: message.media?.mimetype
+    });
     return null;
   } finally {
     state.pendingMedia.delete(cacheKey);

@@ -178,6 +178,7 @@ export class WhatsAppService {
             quoted: message.quoted,
             isEdited: message.isEdited,
             isDeleted: message.isDeleted,
+            raw: message.raw,
           });
           return;
         }
@@ -198,6 +199,7 @@ export class WhatsAppService {
           quoted: message.quoted,
           isEdited: message.isEdited,
           isDeleted: message.isDeleted,
+          raw: message.raw,
         });
 
         // Processa mensagem com IA se estiver habilitado
@@ -226,6 +228,7 @@ export class WhatsAppService {
           quoted: message.quoted,
           isEdited: message.isEdited,
           isDeleted: message.isDeleted,
+          raw: message.raw,
         });
       },
       onHistoryChat: (chat) => {
@@ -342,29 +345,55 @@ export class WhatsAppService {
       throw new Error("jid invalido");
     }
 
+    console.log(`[DEBUG] Looking for media: sessionId=${sessionId}, jid=${jid}, normalizedJid=${normalizedJid}, messageId=${messageId}`);
+
     const rawMessage = findRawMessage(sessionId, normalizedJid, messageId);
 
     if (!rawMessage) {
-      throw new Error("Mensagem de midia nao encontrada no cache");
+      // Try to find the message in ChatStore as fallback
+      const storedMessage = ChatStore.getMessage(sessionId, normalizedJid, messageId);
+      if (storedMessage?.raw) {
+        console.log(`[DEBUG] Found message in ChatStore fallback for ${messageId}`);
+        // Cache this raw message for future requests
+        cacheRawMessage(sessionId, normalizedJid, messageId, storedMessage.raw);
+      } else {
+        console.error(`[DEBUG] Media message not found in cache or ChatStore: ${messageId}`);
+        throw new Error("Mensagem de midia nao encontrada no cache");
+      }
     }
 
-    const buffer = await downloadMediaMessage(rawMessage, "buffer", {}, {
-      logger: pino({ level: "silent" }),
-      reuploadRequest: sock.updateMediaMessage,
-    } as any);
+    const messageToUse = rawMessage || ChatStore.getMessage(sessionId, normalizedJid, messageId)?.raw;
+    
+    if (!messageToUse) {
+      throw new Error("Mensagem de midia nao encontrada");
+    }
 
-    const storedMessage = ChatStore.getMessage(
-      sessionId,
-      normalizedJid,
-      messageId,
-    );
-    const mimeType =
-      storedMessage?.media?.mimetype || "application/octet-stream";
+    console.log(`[DEBUG] Found media message, attempting download...`);
 
-    return {
-      mimeType,
-      dataUrl: `data:${mimeType};base64,${buffer.toString("base64")}`,
-    };
+    try {
+      const buffer = await downloadMediaMessage(messageToUse, "buffer", {}, {
+        logger: pino({ level: "silent" }),
+        reuploadRequest: sock.updateMediaMessage,
+      } as any);
+
+      const storedMessage = ChatStore.getMessage(
+        sessionId,
+        normalizedJid,
+        messageId,
+      );
+      const mimeType =
+        storedMessage?.media?.mimetype || "application/octet-stream";
+
+      console.log(`[DEBUG] Successfully downloaded media: ${mimeType}, size: ${buffer.length} bytes`);
+
+      return {
+        mimeType,
+        dataUrl: `data:${mimeType};base64,${buffer.toString("base64")}`,
+      };
+    } catch (downloadError: any) {
+      console.error(`[DEBUG] Failed to download media:`, downloadError);
+      throw new Error(`Falha ao baixar midia: ${downloadError.message}`);
+    }
   }
 
   static async closeSession(sessionId: string) {
