@@ -1,6 +1,7 @@
 import type { SendMessagePayload } from "../types/message.types";
 import type { WASocket } from "@whiskeysockets/baileys";
 import { ChatStore } from "../modules/chat/chat.store";
+import { spawn } from "child_process";
 
 export class MessageSender {
   constructor(
@@ -172,11 +173,25 @@ export class MessageSender {
     const { source, mimetype } = this.buildMediaSource(payload);
     const caption = payload.text || "";
 
-    const content: any = this.buildMediaContent(mediaKind, source, mimetype, caption, payload);
+    const normalized = await this.normalizeAudioVoiceNote({
+      kind: mediaKind,
+      source,
+      mimetype,
+      payload,
+    });
+
+    const content: any = this.buildMediaContent(
+      mediaKind,
+      normalized.source,
+      normalized.mimetype,
+      caption,
+      payload,
+    );
 
     const response = await this.sock.sendMessage(payload.jid, content);
 
     const mediaText = this.getMediaText(mediaKind, caption, payload.fileName);
+    const storedMimetype = normalized.mimetype || mimetype;
 
     ChatStore.addOutgoing(this.sessionId, {
       id: response?.key?.id || undefined,
@@ -185,7 +200,7 @@ export class MessageSender {
       type: mediaKind,
       media: {
         kind: mediaKind,
-        mimetype,
+        mimetype: storedMimetype,
         fileName: payload.fileName,
         caption,
         hasMedia: true,
@@ -226,14 +241,21 @@ export class MessageSender {
       return {};
     }
 
-    const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) {
-      return {};
-    }
+    const match = dataUrl.match(/^data:([^,]+),(.*)$/);
+    if (!match) return {};
+
+    const header = match[1] || "";
+    const base64Data = match[2] || "";
+
+    const headerParts = header.split(";").map((part) => part.trim());
+    const mimetype = headerParts[0] || undefined;
+    const isBase64 = headerParts.includes("base64");
+
+    if (!isBase64 || !base64Data) return {};
 
     return {
-      mimetype: match[1],
-      buffer: Buffer.from(match[2], "base64"),
+      mimetype,
+      buffer: Buffer.from(base64Data, "base64"),
     };
   }
 
@@ -281,6 +303,30 @@ export class MessageSender {
     }
 
     return "document";
+  }
+
+  private async normalizeAudioVoiceNote(args: {
+    kind: "image" | "video" | "audio" | "document" | "sticker";
+    source: Buffer | { url: string };
+    mimetype?: string;
+    payload: SendMessagePayload;
+  }): Promise<{ source: Buffer | { url: string }; mimetype?: string }> {
+    const { kind, source, mimetype, payload } = args;
+
+    if (kind !== "audio" || !payload.ptt) {
+      return { source, mimetype };
+    }
+
+    if (!Buffer.isBuffer(source)) {
+      return { source, mimetype };
+    }
+
+    if (mimetype?.toLowerCase().includes("audio/ogg")) {
+      return { source, mimetype };
+    }
+
+    const converted = await convertAudioToOggOpus(source);
+    return { source: converted, mimetype: "audio/ogg; codecs=opus" };
   }
 
   private buildMediaContent(
@@ -331,4 +377,80 @@ export class MessageSender {
 
     return mediaTexts[kind]();
   }
+}
+
+async function convertAudioToOggOpus(input: Buffer): Promise<Buffer> {
+  const timeoutMs = 30_000;
+
+  return await new Promise<Buffer>((resolve, reject) => {
+    const ffmpeg = spawn(
+      "ffmpeg",
+      [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        "pipe:0",
+        "-vn",
+        "-ac",
+        "1",
+        "-c:a",
+        "libopus",
+        "-b:a",
+        "24k",
+        "-vbr",
+        "on",
+        "-compression_level",
+        "10",
+        "-f",
+        "ogg",
+        "pipe:1",
+      ],
+      { windowsHide: true },
+    );
+
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
+
+    const timer = setTimeout(() => {
+      ffmpeg.kill();
+      reject(new Error("Timeout ao converter áudio (ffmpeg)"));
+    }, timeoutMs);
+
+    ffmpeg.stdout.on("data", (chunk) => stdoutChunks.push(Buffer.from(chunk)));
+    ffmpeg.stderr.on("data", (chunk) => stderrChunks.push(Buffer.from(chunk)));
+
+    ffmpeg.on("error", (error) => {
+      clearTimeout(timer);
+      reject(
+        new Error(
+          `Falha ao iniciar ffmpeg para converter áudio: ${error.message}`,
+        ),
+      );
+    });
+
+    ffmpeg.on("close", (code) => {
+      clearTimeout(timer);
+
+      if (code === 0) {
+        const output = Buffer.concat(stdoutChunks);
+        if (output.length === 0) {
+          reject(new Error("ffmpeg retornou áudio vazio"));
+          return;
+        }
+
+        resolve(output);
+        return;
+      }
+
+      const stderr = Buffer.concat(stderrChunks).toString("utf8").trim();
+      reject(
+        new Error(
+          `Falha ao converter áudio para OGG/Opus (ffmpeg exit ${code}).${stderr ? ` ${stderr}` : ""}`,
+        ),
+      );
+    });
+
+    ffmpeg.stdin.end(input);
+  });
 }

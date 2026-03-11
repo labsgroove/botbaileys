@@ -212,6 +212,7 @@ let voiceRecorder = {
   startTime: null,
   timerInterval: null,
   isRecording: false,
+  shouldSend: false,
 };
 
 // State for UI
@@ -517,6 +518,7 @@ function startVoiceRecording() {
       voiceRecorder.mediaRecorder = new MediaRecorder(stream);
       voiceRecorder.audioChunks = [];
       voiceRecorder.startTime = Date.now();
+      voiceRecorder.shouldSend = false;
       
       voiceRecorder.mediaRecorder.ondataavailable = event => {
         voiceRecorder.audioChunks.push(event.data);
@@ -524,7 +526,9 @@ function startVoiceRecording() {
       
       voiceRecorder.mediaRecorder.onstop = () => {
         const audioBlob = new Blob(voiceRecorder.audioChunks, { type: 'audio/webm' });
-        sendVoiceMessage(audioBlob);
+        if (voiceRecorder.shouldSend && audioBlob.size > 0) {
+          sendVoiceMessage(audioBlob);
+        }
       };
       
       voiceRecorder.mediaRecorder.start();
@@ -544,8 +548,9 @@ function startVoiceRecording() {
     });
 }
 
-function stopVoiceRecording() {
+function stopVoiceRecording({ send = true } = {}) {
   if (voiceRecorder.mediaRecorder && voiceRecorder.isRecording) {
+    voiceRecorder.shouldSend = send;
     voiceRecorder.mediaRecorder.stop();
     voiceRecorder.mediaRecorder.stream.getTracks().forEach(track => track.stop());
     voiceRecorder.isRecording = false;
@@ -570,12 +575,17 @@ function updateVoiceTimer() {
 }
 
 function cancelVoiceRecording() {
-  stopVoiceRecording();
+  stopVoiceRecording({ send: false });
   hideAllMenus();
   elements.voiceTimer.textContent = '00:00';
 }
 
 async function sendVoiceMessage(audioBlob) {
+  if (!state.sessionId) {
+    showToast('Conecte uma sessão primeiro', 'error');
+    return;
+  }
+
   if (!state.activeJid) {
     showToast('Selecione um contato primeiro', 'error');
     return;
@@ -583,18 +593,25 @@ async function sendVoiceMessage(audioBlob) {
   
   try {
     showToast('Enviando áudio...', 'info');
-    
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'voice.webm');
-    
-    const response = await fetch(`/session/${encodeURIComponent(state.sessionId)}/send-voice/${encodeURIComponent(state.activeJid)}`, {
+
+    const seconds = voiceRecorder.startTime
+      ? Math.max(1, Math.round((Date.now() - voiceRecorder.startTime) / 1000))
+      : undefined;
+
+    const payload = {
+      jid: state.activeJid,
+      type: 'media',
+      mediaDataUrl: await fileToDataUrl(audioBlob),
+      mimetype: audioBlob?.type || 'audio/webm',
+      fileName: 'voice.webm',
+      ptt: true,
+      seconds,
+    };
+
+    await callApi(`/session/${encodeURIComponent(state.sessionId)}/messages`, {
       method: 'POST',
-      body: formData
+      body: JSON.stringify(payload),
     });
-    
-    if (!response.ok) {
-      throw new Error('Falha ao enviar mensagem de voz');
-    }
     
     showToast('Áudio enviado com sucesso!', 'success');
     
@@ -606,11 +623,16 @@ async function sendVoiceMessage(audioBlob) {
     await loadMessages(state.activeJid);
   } catch (error) {
     console.error('Error sending voice message:', error);
-    showToast('Erro ao enviar mensagem de voz', 'error');
+    showToast(`Erro ao enviar mensagem de voz: ${error.message}`, 'error');
   }
 }
 
 async function handleFileUpload(file, type) {
+  if (!state.sessionId) {
+    showToast('Conecte uma sessão primeiro', 'error');
+    return;
+  }
+
   if (!state.activeJid) {
     showToast('Selecione um contato primeiro', 'error');
     return;
@@ -630,36 +652,19 @@ async function handleFileUpload(file, type) {
   
   try {
     showToast(`Enviando ${file.name}...`, 'info', 10000);
-    
-    const formData = new FormData();
-    formData.append('media', file);
-    
-    let endpoint = `/session/${encodeURIComponent(state.sessionId)}/send-media/${encodeURIComponent(state.activeJid)}`;
-    
-    switch (type) {
-      case 'image':
-        endpoint += '?type=image';
-        break;
-      case 'video':
-        endpoint += '?type=video';
-        break;
-      case 'document':
-        endpoint += '?type=document';
-        break;
-      case 'audio':
-        endpoint += '?type=audio';
-        break;
-    }
-    
-    const response = await fetch(endpoint, {
+
+    const payload = {
+      jid: state.activeJid,
+      type: 'media',
+      mediaDataUrl: await fileToDataUrl(file),
+      mimetype: file.type || undefined,
+      fileName: file.name,
+    };
+
+    await callApi(`/session/${encodeURIComponent(state.sessionId)}/messages`, {
       method: 'POST',
-      body: formData
+      body: JSON.stringify(payload),
     });
-    
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Falha ao enviar mídia');
-    }
     
     showToast(`${file.name} enviado com sucesso!`, 'success');
     hideAllMenus();
