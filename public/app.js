@@ -188,7 +188,7 @@ const connectionLabels = {
   idle: "Aguardando",
   qr: "QR pronto",
   connecting: "Conectando",
-  connected: "Conectado",
+  connected: "Online",
   closed: "Encerrada",
 };
 
