@@ -7,6 +7,7 @@ import { existsSync, readdirSync } from "fs";
 import path from "path";
 import pino from "pino";
 import { ChatStore } from "../chat/chat.store";
+import { ChatPersistenceService } from "../chat/chat.persistence.service";
 import { createSession } from "./session.manager";
 import type {
   SessionConnectionStatus,
@@ -201,6 +202,11 @@ export class WhatsAppService {
             isDeleted: message.isDeleted,
             raw: message.raw,
           });
+
+          ChatPersistenceService.persistMessage(sessionId, message, {
+            countUnread: false,
+            source: "outgoing",
+          });
           return;
         }
 
@@ -221,6 +227,11 @@ export class WhatsAppService {
           isEdited: message.isEdited,
           isDeleted: message.isDeleted,
           raw: message.raw,
+        });
+
+        ChatPersistenceService.persistMessage(sessionId, message, {
+          countUnread: true,
+          source: "incoming",
         });
 
         // Processa mensagem com IA se estiver habilitado
@@ -251,18 +262,32 @@ export class WhatsAppService {
           isDeleted: message.isDeleted,
           raw: message.raw,
         });
+
+        ChatPersistenceService.persistMessage(sessionId, message, {
+          countUnread: false,
+          source: "history",
+        });
       },
       onHistoryChat: (chat) => {
         ChatStore.upsertHistoryChat(sessionId, chat);
+        ChatPersistenceService.persistHistoryChat(sessionId, chat);
       },
       onContactUpdate: (contact) => {
         ChatStore.upsertContact(sessionId, contact);
+        ChatPersistenceService.persistContactUpdate(sessionId, contact);
       },
       onMessageUpdate: (update) => {
         ChatStore.updateMessage(sessionId, update);
+        ChatPersistenceService.persistMessageUpdate(sessionId, update);
       },
       onMessageDelete: ({ jid, messageId, timestamp }) => {
         ChatStore.markMessageDeleted(sessionId, jid, messageId, timestamp);
+        ChatPersistenceService.persistMessageUpdate(sessionId, {
+          id: messageId,
+          jid,
+          timestamp,
+          isDeleted: true,
+        });
       },
       onReaction: ({ jid, messageId, emoji, actor, fromMe, timestamp }) => {
         ChatStore.applyReaction(sessionId, {
@@ -276,6 +301,12 @@ export class WhatsAppService {
       },
       onMessageReceipt: ({ jid, messageId, status, timestamp }) => {
         ChatStore.updateMessage(sessionId, {
+          id: messageId,
+          jid,
+          status,
+          timestamp,
+        });
+        ChatPersistenceService.persistMessageUpdate(sessionId, {
           id: messageId,
           jid,
           status,
