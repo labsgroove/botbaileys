@@ -1160,7 +1160,7 @@ const renderMessages = throttle(() => {
   if (!state.activeJid) {
     elements.chatHeaderTitle.textContent = "Selecione uma conversa";
     elements.chatHeaderSubtitle.textContent = "Escolha um contato para abrir o historico.";
-    elements.messageList.innerHTML = '<div class="message-empty">As mensagens aparecerao aqui.</div>';
+    elements.messageList.innerHTML = '<div class="message-empty">Projeto desenvolvido por Rodrigo Marafon.</div>';
     return;
   }
 
