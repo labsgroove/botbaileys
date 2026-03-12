@@ -123,8 +123,7 @@ const elements = {
   reactionMessageId: document.getElementById("reaction-message-id"),
   reactionEmoji: document.getElementById("reaction-emoji"),
   interactiveJson: document.getElementById("interactive-json"),
-  refreshChatsBtn: document.getElementById("refresh-chats-btn"),
-  // Menus
+    // Menus
   attachMenu: document.getElementById("attach-menu"),
   emojiPicker: document.getElementById("emoji-picker"),
   voiceRecorder: document.getElementById("voice-recorder"),
@@ -2168,15 +2167,7 @@ async function boot() {
       }
     });
 
-    // Refresh chats
-    addEventListenerSafe(elements.refreshChatsBtn, "click", async () => {
-      await handleAsyncError(loadChats());
-      if (state.activeJid) {
-        await handleAsyncError(selectChat(state.activeJid));
-      }
-      scrollToBottom(false);
-    });
-
+    
     // Logout
     addEventListenerSafe(elements.logoutBtn, "click", () => {
       if (confirm('Tem certeza que deseja sair?')) {
