@@ -15,6 +15,19 @@ import {
 
 type MessageContent = any;
 
+// Repositório central de nomes por sessão (importado do session.manager)
+declare const contactNamesBySession: Map<string, Map<string, string>>;
+
+function getContactName(sessionId: string, jid: string, fallbackName?: string): string | undefined {
+  // Função auxiliar para acessar o repositório central
+  try {
+    const sessionNames = (globalThis as any).contactNamesBySession?.get(sessionId);
+    return sessionNames?.get(jid) || fallbackName;
+  } catch {
+    return fallbackName;
+  }
+}
+
 class MessageParser {
   private jid: string;
   private timestamp: number;
@@ -48,6 +61,30 @@ class MessageParser {
     }
 
     const parser = new MessageParser(message);
+    return parser.parseMessage();
+  }
+
+  static parseWithSessionName(message: any, sessionId: string): SessionMessage | null {
+    if (!message?.key?.remoteJid || message.key.remoteJid === "status@broadcast") {
+      return null;
+    }
+
+    // Tenta obter nome do repositório central
+    let enhancedMessage = message;
+    if (sessionId && message?.key?.remoteJid) {
+      const jid = normalizeJid(message.key.remoteJid);
+      if (jid) {
+        const repositoryName = getContactName(sessionId, jid, message.pushName);
+        if (repositoryName && repositoryName !== message.pushName) {
+          enhancedMessage = {
+            ...message,
+            pushName: repositoryName
+          };
+        }
+      }
+    }
+
+    const parser = new MessageParser(enhancedMessage);
     return parser.parseMessage();
   }
 
@@ -219,4 +256,8 @@ class MessageParser {
 
 export function parseMessagePayload(message: any): SessionMessage | null {
   return MessageParser.parse(message);
+}
+
+export function parseMessagePayloadWithSession(message: any, sessionId: string): SessionMessage | null {
+  return MessageParser.parseWithSessionName(message, sessionId);
 }

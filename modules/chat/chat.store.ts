@@ -478,9 +478,13 @@ function upsertMessage(
     chat.meta.lastMessageType = currentMessage.type;
   }
 
+  // Lógica conservadora para atualizar nome: só sobrescreve se não existir ou for numérico
   const normalizedName = payload.name?.trim();
   if (normalizedName) {
-    chat.meta.name = normalizedName;
+    const currentName = chat.meta.name;
+    if (!currentName || currentName.match(/^\d+$/) || (normalizedName.length > currentName.length && !normalizedName.match(/^\d+$/))) {
+      chat.meta.name = normalizedName;
+    }
   }
 }
 
@@ -597,23 +601,23 @@ export class ChatStore {
     // Seleciona o nome preferido (prioriza: name > notify > verifiedName)
     const preferredName = [payload.name, payload.notify, payload.verifiedName]
       .map((value) => value?.trim())
-      .find((value) => !!value && value.length > 0);
+      .find((value) => !!value && value.length > 0 && !value.match(/^\d+$/));
 
     if (!preferredName) {
       return;
     }
 
-    // Atualiza o nome em todos os JIDs relacionados
+    // Atualiza o nome em todos os JIDs relacionados com lógica conservadora
     const allRelatedJids = new Set([canonicalJid, ...normalizedCandidates]);
     for (const relatedJid of allRelatedJids) {
       const resolved = resolveJid(session, relatedJid);
       if (resolved && session.meta[resolved]) {
         const currentName = session.meta[resolved].name;
-        // Prioriza nomes não vazios e mais descritivos
+        // Prioriza nomes não vazios e mais descritivos, mas só sobrescreve se for melhor
         if (
           !currentName ||
-          (preferredName.length > currentName.length &&
-            !currentName.match(/^\d+$/))
+          currentName.match(/^\d+$/) ||
+          (preferredName.length > currentName.length && !preferredName.match(/^\d+$/))
         ) {
           session.meta[resolved].name = preferredName;
         }
@@ -855,9 +859,13 @@ export class ChatStore {
       return;
     }
 
+    // Lógica conservadora para atualizar nome: só sobrescreve se não existir ou for numérico
     const normalizedName = payload.name?.trim();
     if (normalizedName) {
-      chat.meta.name = normalizedName;
+      const currentName = chat.meta.name;
+      if (!currentName || currentName.match(/^\d+$/) || (normalizedName.length > currentName.length && !normalizedName.match(/^\d+$/))) {
+        chat.meta.name = normalizedName;
+      }
     }
 
     const normalizedUnread = Number(payload.unread);

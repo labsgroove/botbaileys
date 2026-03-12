@@ -17,7 +17,41 @@ import {
   normalizeJid, 
   pickContactName 
 } from "../../utils/message.utils";
-import { parseMessagePayload } from "../../utils/message.parser";
+import { parseMessagePayload, parseMessagePayloadWithSession } from "../../utils/message.parser";
+
+// Repositório central de nomes por sessão
+const contactNamesBySession = new Map<string, Map<string, string>>();
+
+// Disponibiliza globalmente para outras modules
+(globalThis as any).contactNamesBySession = contactNamesBySession;
+
+function getContactName(sessionId: string, jid: string, fallbackName?: string): string | undefined {
+  const sessionNames = contactNamesBySession.get(sessionId);
+  if (!sessionNames) {
+    return fallbackName;
+  }
+  
+  return sessionNames.get(jid) || fallbackName;
+}
+
+function setContactName(sessionId: string, jid: string, name: string): void {
+  if (!name || name.trim().length === 0) {
+    return;
+  }
+  
+  if (!contactNamesBySession.has(sessionId)) {
+    contactNamesBySession.set(sessionId, new Map());
+  }
+  
+  const sessionNames = contactNamesBySession.get(sessionId)!;
+  const normalizedName = name.trim();
+  
+  // Só atualiza se o nome atual for numérico ou não existir
+  const currentName = sessionNames.get(jid);
+  if (!currentName || currentName.match(/^\d+$/) || normalizedName.length > currentName.length) {
+    sessionNames.set(jid, normalizedName);
+  }
+}
 
 
 function emitContactUpdate(
@@ -68,7 +102,7 @@ function emitChatSnapshot(
       | { toNumber: () => number }
       | null;
   },
-  namesByJid?: Map<string, string>,
+  sessionId?: string,
 ) {
   const jid = normalizeJid(payload.id);
 
@@ -84,9 +118,15 @@ function emitChatSnapshot(
   const conversationTs = normalizeTimestamp(payload.conversationTimestamp);
   const recvTs = normalizeTimestamp(payload.lastMessageRecvTimestamp);
 
+  // Usa repositório central de nomes se sessionId for fornecido
+  let contactName = payload.name?.trim();
+  if (sessionId && !contactName) {
+    contactName = getContactName(sessionId, jid);
+  }
+
   options.onHistoryChat?.({
     jid,
-    name: payload.name?.trim() || namesByJid?.get(jid),
+    name: contactName,
     unread: normalizedUnread,
     lastTimestamp: conversationTs || recvTs,
   });
@@ -143,10 +183,16 @@ export async function createSession(
     );
 
     for (const incoming of messages || []) {
-      const parsed = parseMessagePayload(incoming);
+      const jid = normalizeJid(incoming?.key?.remoteJid) || "";
+      const parsed = parseMessagePayloadWithSession(incoming, sessionId);
 
       if (!parsed) {
         continue;
+      }
+
+      // Atualiza repositório de nomes com pushName da mensagem
+      if (parsed.name && parsed.name.trim().length > 0) {
+        setContactName(sessionId, parsed.jid, parsed.name);
       }
 
       if (parsed.type === "reaction" && parsed.targetMessageId) {
@@ -369,7 +415,6 @@ export async function createSession(
 
   sock.ev.on("messaging-history.set", ({ messages, contacts, chats }) => {
     const totalHistoryMessages = messages?.length || 0;
-    const historyNamesByJid = new Map<string, string>();
     let importedMessages = 0;
     let skippedMessages = 0;
 
@@ -401,7 +446,7 @@ export async function createSession(
       ].filter((jid): jid is string => !!jid);
 
       for (const knownJid of knownJids) {
-        historyNamesByJid.set(knownJid, name);
+        setContactName(sessionId, knownJid, name);
       }
     }
 
@@ -415,20 +460,17 @@ export async function createSession(
           conversationTimestamp: historyChat.conversationTimestamp,
           lastMessageRecvTimestamp: historyChat.lastMessageRecvTimestamp,
         },
-        historyNamesByJid,
+        sessionId,
       );
     }
 
     for (const historyMessage of messages || []) {
-      const parsed = parseMessagePayload(historyMessage);
+      const jid = normalizeJid(historyMessage?.key?.remoteJid) || "";
+      const parsed = parseMessagePayloadWithSession(historyMessage, sessionId);
 
       if (!parsed) {
         skippedMessages += 1;
         continue;
-      }
-
-      if (!parsed.name) {
-        parsed.name = historyNamesByJid.get(parsed.jid);
       }
 
       importedMessages += 1;
@@ -450,7 +492,7 @@ export async function createSession(
         unreadCount: chat.unreadCount,
         conversationTimestamp: chat.conversationTimestamp,
         lastMessageRecvTimestamp: chat.lastMessageRecvTimestamp,
-      });
+      }, sessionId);
     }
   });
 
@@ -464,7 +506,7 @@ export async function createSession(
         unreadCount: chat.unreadCount,
         conversationTimestamp: chat.conversationTimestamp,
         lastMessageRecvTimestamp: chat.lastMessageRecvTimestamp,
-      });
+      }, sessionId);
     }
   });
 
@@ -484,6 +526,20 @@ export async function createSession(
         notify: contact.notify,
         verifiedName: contact.verifiedName,
       });
+
+      // Atualiza repositório central de nomes
+      const name = pickContactName(contact);
+      if (name) {
+        const knownJids = [
+          normalizeJid(contact.id),
+          normalizeJid(contact.jid),
+          normalizeJid(contact.lid),
+        ].filter((jid): jid is string => !!jid);
+
+        for (const knownJid of knownJids) {
+          setContactName(sessionId, knownJid, name);
+        }
+      }
     }
   });
 
@@ -503,6 +559,20 @@ export async function createSession(
         notify: contact.notify,
         verifiedName: contact.verifiedName,
       });
+
+      // Atualiza repositório central de nomes
+      const name = pickContactName(contact);
+      if (name) {
+        const knownJids = [
+          normalizeJid(contact.id),
+          normalizeJid(contact.jid),
+          normalizeJid(contact.lid),
+        ].filter((jid): jid is string => !!jid);
+
+        for (const knownJid of knownJids) {
+          setContactName(sessionId, knownJid, name);
+        }
+      }
     }
   });
 
@@ -518,6 +588,12 @@ export async function createSession(
       jid,
       lid,
     });
+
+    // Atualiza repositório para mapear LID para JID
+    const existingName = getContactName(sessionId, lid);
+    if (existingName) {
+      setContactName(sessionId, jid, existingName);
+    }
   });
 
   sock.ev.on("groups.upsert", (groups) => {
