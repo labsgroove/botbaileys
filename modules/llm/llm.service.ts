@@ -17,17 +17,15 @@ export class LLMService {
     if (config.provider === 'google-ai' && config.googleAI) {
       return this.askGoogleAI(messages, config.googleAI)
     } else {
-      return this.askLMStudio(messages, config.lmStudio)
+      throw new Error('Configuração inválida - apenas Google AI é suportado')
     }
   }
 
   static async askWithConfig(messages: any[], config: any): Promise<string> {
     if (config.provider === 'google-ai' && config.googleAI) {
       return this.askGoogleAI(messages, config.googleAI)
-    } else if (config.provider === 'lm-studio' && config.lmStudio) {
-      return this.askLMStudio(messages, config.lmStudio)
     } else {
-      throw new Error('Configuração inválida para teste')
+      throw new Error('Configuração inválida para teste - apenas Google AI é suportado')
     }
   }
 
@@ -86,20 +84,6 @@ export class LLMService {
       console.error('Google AI API error:', error)
       throw new Error('Erro ao comunicar com Google AI')
     }
-  }
-
-  private static async askLMStudio(messages: any[], config: AIConfig['lmStudio']): Promise<string> {
-    if (!config) {
-      throw new Error('Configuração do LM Studio não encontrada')
-    }
-
-    const response = await axios.post(config.url, {
-      model: config.model,
-      messages,
-      temperature: config.temperature
-    })
-
-    return response.data.choices[0].message.content
   }
 
   static async reloadConfig(): Promise<void> {

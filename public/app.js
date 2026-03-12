@@ -138,11 +138,7 @@ const elements = {
   configStatus: document.getElementById("config-status"),
   // AI Config inputs
   aiProviderRadios: document.querySelectorAll('input[name="ai-provider"]'),
-  lmStudioConfig: document.getElementById("lm-studio-config"),
   googleAiConfig: document.getElementById("google-ai-config"),
-  lmStudioUrl: document.getElementById("lm-studio-url"),
-  lmStudioModel: document.getElementById("lm-studio-model"),
-  lmStudioTemperature: document.getElementById("lm-studio-temperature"),
   googleAiApiKey: document.getElementById("google-ai-api-key"),
   googleAiModel: document.getElementById("google-ai-model"),
   googleAiTemperature: document.getElementById("google-ai-temperature"),
@@ -1627,11 +1623,7 @@ function hideConfigStatus() {
 
 function switchAiProvider(provider) {
   if (provider === 'google-ai') {
-    elements.lmStudioConfig.classList.add('hidden');
     elements.googleAiConfig.classList.remove('hidden');
-  } else {
-    elements.lmStudioConfig.classList.remove('hidden');
-    elements.googleAiConfig.classList.add('hidden');
   }
 }
 
@@ -1645,13 +1637,6 @@ async function loadAiConfig() {
     if (providerRadio) {
       providerRadio.checked = true;
       switchAiProvider(config.provider);
-    }
-    
-    // Load LM Studio config
-    if (config.lmStudio) {
-      elements.lmStudioUrl.value = config.lmStudio.url || '';
-      elements.lmStudioModel.value = config.lmStudio.model || '';
-      elements.lmStudioTemperature.value = config.lmStudio.temperature || 0.7;
     }
     
     // Load Google AI config
@@ -1705,11 +1690,6 @@ async function saveAiConfig() {
     
     const config = {
       provider,
-      lmStudio: provider === 'lm-studio' ? {
-        url: elements.lmStudioUrl.value.trim(),
-        model: elements.lmStudioModel.value.trim(),
-        temperature: parseFloat(elements.lmStudioTemperature.value)
-      } : undefined,
       googleAI: provider === 'google-ai' ? {
         apiKey: elements.googleAiApiKey.value.trim(),
         model: elements.googleAiModel.value,
@@ -1880,13 +1860,7 @@ async function getCurrentBotConfig() {
     maxHistoryLength: parseInt(elements.maxHistoryLength.value)
   };
 
-  if (provider === 'lm-studio') {
-    config.lmStudio = {
-      url: elements.lmStudioUrl.value.trim(),
-      model: elements.lmStudioModel.value.trim(),
-      temperature: parseFloat(elements.lmStudioTemperature.value)
-    };
-  } else if (provider === 'google-ai') {
+  if (provider === 'google-ai') {
     config.googleAI = {
       apiKey: elements.googleAiApiKey.value.trim(),
       model: elements.googleAiModel.value,

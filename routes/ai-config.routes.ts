@@ -32,10 +32,6 @@ router.post('/config', async (req, res) => {
       return res.status(400).json({ error: 'API Key do Google AI é obrigatória' })
     }
     
-    if (config.provider === 'lm-studio' && !config.lmStudio?.url) {
-      return res.status(400).json({ error: 'URL do LM Studio é obrigatória' })
-    }
-    
     // Validar configurações de contexto do bot
     if (config.botContext) {
       if (config.botContext.maxHistoryLength && (config.botContext.maxHistoryLength < 5 || config.botContext.maxHistoryLength > 100)) {
@@ -107,10 +103,6 @@ router.post('/test-chat', async (req, res) => {
     // Validar configuração
     if (config.provider === 'google-ai' && !config.googleAI?.apiKey) {
       return res.status(400).json({ error: 'API Key do Google AI é obrigatória' })
-    }
-    
-    if (config.provider === 'lm-studio' && !config.lmStudio?.url) {
-      return res.status(400).json({ error: 'URL do LM Studio é obrigatória' })
     }
     
     // Criar conversa temporária para teste

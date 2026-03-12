@@ -4,17 +4,12 @@ import { env } from '../../config/env'
 import axios from 'axios'
 
 export interface AIConfig {
-  provider: 'lm-studio' | 'google-ai'
+  provider: 'google-ai'
   googleAI?: {
     apiKey: string
     model: string
     temperature: number
     maxTokens: number
-  }
-  lmStudio?: {
-    url: string
-    model: string
-    temperature: number
   }
   botContext?: {
     systemPrompt: string
@@ -38,12 +33,7 @@ export class AIConfigService {
     } catch (error) {
       // Configuração padrão se arquivo não existir
       return {
-        provider: 'lm-studio',
-        lmStudio: {
-          url: env.LM_STUDIO_URL,
-          model: env.MODEL,
-          temperature: 0.7
-        },
+        provider: 'google-ai',
         botContext: {
           systemPrompt: `Você é um atendente profissional.\nResponda de forma objetiva.\nNunca invente informações.`,
           maxHistoryLength: 20
