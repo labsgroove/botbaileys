@@ -100,6 +100,22 @@ function inferMediaType(
   return "document";
 }
 
+function isMediaExpired(message: any): boolean {
+  // Verifica se a mídia expirou baseado no timestamp da mensagem
+  if (!message?.messageTimestamp) {
+    return false; // Não podemos verificar sem timestamp
+  }
+  
+  const messageTime = typeof message.messageTimestamp.toNumber === 'function' 
+    ? message.messageTimestamp.toNumber() 
+    : Number(message.messageTimestamp);
+  
+  const currentTime = Date.now();
+  const twentyFourHours = 24 * 60 * 60 * 1000; // 24 horas em ms
+  
+  return (currentTime - messageTime) > twentyFourHours;
+}
+
 function extractMediaKey(message: any): Buffer | null {
   if (!message?.message) return null;
   
@@ -391,6 +407,11 @@ export class WhatsAppService {
       throw new Error("Sessao nao encontrada");
     }
 
+    // Verifica se a sessão está conectada
+    if (!sock.user) {
+      throw new Error("Sessao nao esta conectada - nao e possivel baixar midia");
+    }
+
     const normalizedJid = jidNormalizedUser(jid);
 
     if (!normalizedJid) {
@@ -455,8 +476,32 @@ export class WhatsAppService {
         dataUrl: `data:${mimeType};base64,${buffer.toString("base64")}`,
       };
     } catch (downloadError: any) {
-      console.error(`[DEBUG] Failed to download media:`, downloadError);
-      throw new Error(`Falha ao baixar midia: ${downloadError.message}`);
+      console.error(`[DEBUG] Failed to download media:`, {
+        error: downloadError,
+        message: downloadError.message,
+        status: downloadError.response?.status,
+        statusText: downloadError.response?.statusText,
+        messageId,
+        jid: normalizedJid
+      });
+      
+      // Tratamento específico para erro 403 (Forbidden)
+      if (downloadError.response?.status === 403) {
+        console.warn(`[DEBUG] Media access forbidden (403) for message ${messageId}. Possible causes:`);
+        console.warn(`  - Media expired (WhatsApp media links expire after ~24 hours)`);
+        console.warn(`  - Session authentication issues`);
+        console.warn(`  - Media already downloaded/revoked`);
+        
+        // Verifica se a mídia expirou
+        if (isMediaExpired(messageToUse)) {
+          console.warn(`[DEBUG] Media appears to be expired (timestamp: ${messageToUse.messageTimestamp})`);
+          throw new Error(`Mídia expirada - links do WhatsApp expiram após ~24 horas`);
+        }
+        
+        throw new Error(`Acesso à mídia negado (403) - possivelmente expirada ou revogada`);
+      }
+      
+      throw new Error(`Falha ao baixar mídia: ${downloadError.message} (HTTP ${downloadError.response?.status || 'Unknown'})`);
     }
   }
 
