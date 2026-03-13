@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import { User, IUser } from '../../models/user.model'
 import { env } from '../../config/env'
+import { logger } from '../../utils/logger'
 
 export interface AuthTokens {
   accessToken: string
@@ -25,34 +26,31 @@ export class AuthService {
   private static readonly REFRESH_TOKEN_EXPIRES_IN = '7d'
 
   static async register(data: RegisterData): Promise<{ user: Omit<IUser, 'password'>; tokens: AuthTokens }> {
-    console.log('AuthService.register called with:', data.username)
+    logger.info('User registration attempt', { username: data.username, email: data.email })
     
     const existingUser = await User.findOne({
       $or: [{ email: data.email }, { username: data.username }]
     })
 
     if (existingUser) {
-      console.log('User already exists:', existingUser.email)
+      logger.warn('Registration failed: user already exists', { email: data.email })
       throw new Error('Usuário ou email já existe')
     }
 
-    console.log('Hashing password before creating user...')
     const salt = await bcrypt.genSalt(12)
     const hashedPassword = await bcrypt.hash(data.password, salt)
     
     // Generate unique session ID for this user
     const uniqueSessionId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     
-    console.log('Creating new user with hashed password...')
     const user = new User({
       username: data.username,
       email: data.email,
       password: hashedPassword
     })
     
-    console.log('User instance created, calling save...')
     await user.save()
-    console.log('User saved successfully!')
+    logger.info('User registered successfully', { userId: user._id })
 
     // Update user with unique session ID
     await this.updateWhatsAppCredentials(user._id.toString(), uniqueSessionId, false)

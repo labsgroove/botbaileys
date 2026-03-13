@@ -6,6 +6,7 @@ import {
 import { existsSync, readdirSync, rmSync } from "fs";
 import path from "path";
 import pino from "pino";
+import { logger } from "../../utils/logger";
 import { ChatStore } from "../chat/chat.store";
 import { ChatPersistenceService } from "../chat/chat.persistence.service";
 import { createSession } from "./session.manager";
@@ -253,7 +254,7 @@ export class WhatsAppService {
         // Processa mensagem com IA se estiver habilitado
         if (message.text && message.text.trim().length > 0) {
           AIConversationService.processIncomingMessage(sessionId, message.jid, message.text)
-            .catch(error => console.error('Error in AI processing:', error));
+            .catch(error => logger.error('Error in AI processing', { error: error.message, sessionId, jid: message.jid }));
         }
       },
       onHistoryMessage: (message) => {

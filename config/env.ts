@@ -9,6 +9,12 @@ export const env = {
   MODEL: process.env.MODEL || 'local-model',
   GOOGLE_AI_API_KEY: process.env.GOOGLE_AI_API_KEY || '',
   CONFIG_FILE: process.env.CONFIG_FILE || './config/ai-config.json',
-  JWT_SECRET: process.env.JWT_SECRET || 'default-secret-key-change-in-production',
+  JWT_SECRET: process.env.JWT_SECRET || (() => {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET environment variable is required in production')
+    }
+    console.warn('⚠️  Using default JWT secret key - please set JWT_SECRET environment variable in production')
+    return 'dev-secret-key-change-in-production'
+  })(),
   MONGODB_URI: process.env.MONGODB_URI || 'mongodb://localhost:27017/whatsapp-bot'
 }

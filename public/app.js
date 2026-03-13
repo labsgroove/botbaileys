@@ -11,6 +11,7 @@ const state = {
   pendingMedia: new Set(),
   currentUser: null,
   accessToken: null,
+  sidebarOpen: false,
 };
 
 // Logout function
@@ -124,6 +125,10 @@ const elements = {
   aiConfigBtn: document.getElementById("ai-config-btn"),
   aiToggleBtn: document.getElementById("ai-toggle-btn"),
   logoutBtn: document.getElementById("logout-btn"),
+  // Mobile elements
+  sidebar: document.querySelector(".sidebar"),
+  menuToggleBtn: document.getElementById("menu-toggle-btn"),
+  chatArea: document.querySelector(".chat-area"),
   // Hidden inputs
   jidInput: document.getElementById("jid-input"),
   messageType: document.getElementById("message-type"),
@@ -1343,6 +1348,9 @@ const selectChat = debounce(async (jid) => {
 
     // Atualiza a lista de chats para marcar como lido
     renderChats();
+    
+    // Handle mobile sidebar behavior
+    handleMobileChatSelection();
   } catch (error) {
     console.error('Error selecting chat:', error);
     showToast('Erro ao carregar mensagens', 'error');
@@ -1532,8 +1540,20 @@ function startHistoryRefresh() {
       }
     } catch (error) {
       console.error('Error in history refresh:', error);
+      // Evita loops infinitos de erro
+      if (state.historyRefreshInterval) {
+        clearInterval(state.historyRefreshInterval);
+        state.historyRefreshInterval = null;
+        
+        // Tenta reiniciar após 30 segundos
+        setTimeout(() => {
+          if (!state.historyRefreshInterval) {
+            startHistoryRefresh();
+          }
+        }, 30000);
+      }
     }
-  }, 3000); // 3 segundos para melhor responsividade
+  }, 5000); // Reduzido para 5 segundos para melhor responsividade
 }
 
 function stopHistoryRefresh() {
@@ -2034,6 +2054,63 @@ function showNotification(message, type = 'info') {
   console.log(`[${type.toUpperCase()}] ${message}`);
 }
 
+// Mobile sidebar functions
+function toggleSidebar() {
+  if (!elements.sidebar) return;
+  
+  state.sidebarOpen = !state.sidebarOpen;
+  
+  if (state.sidebarOpen) {
+    elements.sidebar.classList.add('open');
+  } else {
+    elements.sidebar.classList.remove('open');
+  }
+}
+
+function closeSidebar() {
+  if (!elements.sidebar) return;
+  
+  state.sidebarOpen = false;
+  elements.sidebar.classList.remove('open');
+}
+
+function openSidebar() {
+  if (!elements.sidebar) return;
+  
+  state.sidebarOpen = true;
+  elements.sidebar.classList.add('open');
+}
+
+// Check if mobile and auto-close sidebar when selecting chat
+function handleMobileChatSelection() {
+  if (window.innerWidth <= 680 && state.sidebarOpen) {
+    closeSidebar();
+  }
+}
+
+// Add resize listener for mobile behavior
+addEventListenerSafe(window, 'resize', () => {
+  if (window.innerWidth > 680) {
+    // Reset sidebar state on desktop
+    state.sidebarOpen = false;
+    if (elements.sidebar) {
+      elements.sidebar.classList.remove('open');
+    }
+  }
+});
+
+// Add click outside to close sidebar
+addEventListenerSafe(document, 'click', (event) => {
+  if (window.innerWidth <= 680 && state.sidebarOpen) {
+    const isClickInsideSidebar = elements.sidebar?.contains(event.target);
+    const isMenuToggle = elements.menuToggleBtn?.contains(event.target);
+    
+    if (!isClickInsideSidebar && !isMenuToggle) {
+      closeSidebar();
+    }
+  }
+});
+
 async function boot() {
   try {
     renderMessages();
@@ -2045,6 +2122,11 @@ async function boot() {
       const sessionId = state.currentUser?.username || "default";
 
       await handleAsyncError(startSessionConnection(sessionId));
+    });
+
+    // Mobile menu toggle
+    addEventListenerSafe(elements.menuToggleBtn, "click", () => {
+      toggleSidebar();
     });
 
     // Message input auto-resize
