@@ -14,7 +14,18 @@ const state = {
 };
 
 // Logout function
-function logout() {
+async function logout() {
+  try {
+    // Delete session credentials if session exists
+    if (state.sessionId) {
+      await callApi(`/session/${encodeURIComponent(state.sessionId)}/credentials`, {
+        method: 'DELETE'
+      });
+    }
+  } catch (error) {
+    console.error('Error deleting session credentials:', error);
+  }
+  
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
   localStorage.removeItem('user');
@@ -91,7 +102,6 @@ async function checkAuthentication() {
 const elements = {
   connectScreen: document.getElementById("connect-screen"),
   appShell: document.getElementById("app-shell"),
-  sessionInput: document.getElementById("session-input"),
   connectBtn: document.getElementById("connect-btn"),
   connectionDot: document.getElementById("connection-dot"),
   connectionStatus: document.getElementById("connection-status"),
@@ -2031,8 +2041,8 @@ async function boot() {
 
     // Connection
     addEventListenerSafe(elements.connectBtn, "click", async () => {
-      const sessionId = elements.sessionInput.value.trim();
-      if (!sessionId) return;
+      // Use fixed session ID for internal control
+      const sessionId = state.currentUser?.username || "default";
 
       await handleAsyncError(startSessionConnection(sessionId));
     });
@@ -2169,9 +2179,9 @@ async function boot() {
 
     
     // Logout
-    addEventListenerSafe(elements.logoutBtn, "click", () => {
-      if (confirm('Tem certeza que deseja sair?')) {
-        logout();
+    addEventListenerSafe(elements.logoutBtn, "click", async () => {
+      if (confirm('Tem certeza que deseja sair? As credenciais do WhatsApp serão excluídas.')) {
+        await handleAsyncError(logout());
       }
     });
 
@@ -2225,8 +2235,7 @@ async function boot() {
     const userData = await handleAsyncError(callApi("/api/auth/me"));
     if (userData && userData.sessionId) {
       state.sessionId = userData.sessionId;
-      elements.sessionInput.value = userData.sessionId;
-      elements.sessionLabel.textContent = `Usuário: ${userData.user.username} | Sessão: ${userData.sessionId}`;
+      elements.sessionLabel.textContent = `Usuário: ${userData.user.username}`;
       
       // Auto-start session with user's unique session ID
       await handleAsyncError(startSessionConnection(userData.sessionId));
@@ -2237,9 +2246,7 @@ async function boot() {
         const preferredSessionId =
           sessions.active?.[0] ||
           sessions.stored?.[0] ||
-          elements.sessionInput.value.trim() ||
           state.currentUser?.username || "default";
-        elements.sessionInput.value = preferredSessionId;
         await handleAsyncError(startSessionConnection(preferredSessionId));
       }
     }

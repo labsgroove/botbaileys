@@ -3,7 +3,7 @@ import {
   jidNormalizedUser,
   WASocket,
 } from "@whiskeysockets/baileys";
-import { existsSync, readdirSync } from "fs";
+import { existsSync, readdirSync, rmSync } from "fs";
 import path from "path";
 import pino from "pino";
 import { ChatStore } from "../chat/chat.store";
@@ -339,7 +339,7 @@ export class WhatsAppService {
       onEvent: ({ name, summary }) => {
         ChatStore.addEvent(sessionId, name, summary);
       },
-      onConnectionUpdate: ({ connection, qr, statusCode, isLoggedOut }) => {
+      onConnectionUpdate: async ({ connection, qr, statusCode, isLoggedOut }) => {
         if (qr) {
           setState(sessionId, { status: "qr", qr });
         }
@@ -353,6 +353,8 @@ export class WhatsAppService {
 
           if (isLoggedOut) {
             rawMessages.delete(sessionId);
+            // Auto-delete credentials when logged out
+            await this.deleteSessionCredentials(sessionId);
             setState(sessionId, {
               status: "closed",
               qr: undefined,
@@ -505,7 +507,21 @@ export class WhatsAppService {
     }
   }
 
-  static async closeSession(sessionId: string) {
+  static async deleteSessionCredentials(sessionId: string) {
+    try {
+      const authDir = path.resolve("auth", sessionId);
+      
+      if (existsSync(authDir)) {
+        rmSync(authDir, { recursive: true, force: true });
+        console.log(`[WhatsApp] Credentials deleted for session: ${sessionId}`);
+      }
+    } catch (error) {
+      console.error(`[WhatsApp] Error deleting credentials for session ${sessionId}:`, error);
+      throw error;
+    }
+  }
+
+  static async closeSession(sessionId: string, deleteCredentials = false) {
     const sock = sessions.get(sessionId);
 
     if (sock) {
@@ -514,6 +530,12 @@ export class WhatsAppService {
     }
 
     rawMessages.delete(sessionId);
+    
+    // Delete credentials if requested
+    if (deleteCredentials) {
+      await this.deleteSessionCredentials(sessionId);
+    }
+    
     setState(sessionId, { status: "closed", qr: undefined });
   }
 

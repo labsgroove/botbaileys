@@ -42,10 +42,23 @@ router.get('/session/:id/status', authenticateToken, (req: AuthenticatedRequest,
 
 router.delete('/session/:id', async (req, res) => {
   const { id } = req.params
+  const { deleteCredentials } = req.query
 
-  await WhatsAppService.closeSession(id)
+  await WhatsAppService.closeSession(id, deleteCredentials === 'true')
 
-  res.json({ message: `Sessão ${id} encerrada` })
+  res.json({ 
+    message: deleteCredentials === 'true' 
+      ? `Sessão ${id} encerrada e credenciais excluídas` 
+      : `Sessão ${id} encerrada`
+  })
+})
+
+router.delete('/session/:id/credentials', async (req, res) => {
+  const { id } = req.params
+
+  await WhatsAppService.deleteSessionCredentials(id)
+
+  res.json({ message: `Credenciais da sessão ${id} excluídas` })
 })
 
 export default router
