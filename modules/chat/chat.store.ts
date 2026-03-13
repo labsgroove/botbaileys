@@ -479,8 +479,10 @@ function upsertMessage(
   }
 
   // Lógica conservadora para atualizar nome: só sobrescreve se não existir ou for numérico
+  // NÃO atualiza nome de grupos com nome de participantes (evita que grupo fique com nome de quem enviou msg)
+  const isGroupChat = chat.jid.endsWith("@g.us");
   const normalizedName = payload.name?.trim();
-  if (normalizedName) {
+  if (normalizedName && !isGroupChat) {
     const currentName = chat.meta.name;
     if (!currentName || currentName.match(/^\d+$/) || (normalizedName.length > currentName.length && !normalizedName.match(/^\d+$/))) {
       chat.meta.name = normalizedName;
@@ -613,6 +615,12 @@ export class ChatStore {
       const resolved = resolveJid(session, relatedJid);
       if (resolved && session.meta[resolved]) {
         const currentName = session.meta[resolved].name;
+        // NÃO sobrescreve nome de grupos com nome de participantes
+        const isGroupChat = resolved.endsWith("@g.us");
+        if (isGroupChat && currentName && !currentName.match(/^\d+$/)) {
+          continue; // Mantém nome existente do grupo
+        }
+        
         // Prioriza nomes não vazios e mais descritivos, mas só sobrescreve se for melhor
         if (
           !currentName ||
@@ -860,13 +868,15 @@ export class ChatStore {
     }
 
     // Lógica conservadora para atualizar nome: só sobrescreve se não existir ou for numérico
-    const normalizedName = payload.name?.trim();
-    if (normalizedName) {
-      const currentName = chat.meta.name;
-      if (!currentName || currentName.match(/^\d+$/) || (normalizedName.length > currentName.length && !normalizedName.match(/^\d+$/))) {
-        chat.meta.name = normalizedName;
-      }
+  // NÃO atualiza nome de grupos com nome de participantes (evita que grupo fique com nome de quem enviou msg)
+  const isGroupChat = chat.jid.endsWith("@g.us");
+  const normalizedName = payload.name?.trim();
+  if (normalizedName && !isGroupChat) {
+    const currentName = chat.meta.name;
+    if (!currentName || currentName.match(/^\d+$/) || (normalizedName.length > currentName.length && !normalizedName.match(/^\d+$/))) {
+      chat.meta.name = normalizedName;
     }
+  }
 
     const normalizedUnread = Number(payload.unread);
     if (Number.isFinite(normalizedUnread) && normalizedUnread >= 0) {
