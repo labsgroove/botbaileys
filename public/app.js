@@ -114,6 +114,8 @@ const elements = {
   chatList: document.getElementById("chat-list"),
   chatHeaderTitle: document.getElementById("chat-header-title"),
   chatHeaderSubtitle: document.getElementById("chat-header-subtitle"),
+  chatProfilePicture: document.getElementById("chat-profile-picture"),
+  chatProfileImg: document.getElementById("chat-profile-img"),
   messageList: document.getElementById("message-list"),
   messageComposer: document.getElementById("message-composer"),
   messageInput: document.getElementById("message-input"),
@@ -1171,6 +1173,10 @@ const renderMessages = throttle(() => {
     elements.chatHeaderTitle.textContent = "Selecione uma conversa";
     elements.chatHeaderSubtitle.textContent = "Escolha um contato para abrir o historico.";
     elements.messageList.innerHTML = '<div class="message-empty">Projeto desenvolvido por Rodrigo Marafon.</div>';
+    // Hide profile picture when no chat is selected
+    if (elements.chatProfilePicture) {
+      elements.chatProfilePicture.classList.add('hidden');
+    }
     return;
   }
 
@@ -1183,6 +1189,9 @@ const renderMessages = throttle(() => {
   if (elements.chatHeaderTitle) elements.chatHeaderTitle.textContent = contactName;
   if (elements.chatHeaderSubtitle) elements.chatHeaderSubtitle.textContent = lastSeenText || state.activeJid;
   if (elements.jidInput) elements.jidInput.value = state.activeJid;
+
+  // Update profile picture
+  updateProfilePicture(chat);
 
   if (!state.activeMessages.length) {
     elements.messageList.innerHTML = '<div class="message-empty">Nenhuma mensagem neste chat ainda.</div>';
@@ -1268,6 +1277,57 @@ const renderMessages = throttle(() => {
   
   scrollToBottom(false);
 }, 100);
+
+async function updateProfilePicture(chat) {
+  if (!elements.chatProfilePicture || !elements.chatProfileImg) return;
+
+  try {
+    // Show profile picture container
+    elements.chatProfilePicture.classList.remove('hidden');
+
+    // Check if chat has profile picture URL
+    if (chat?.profilePictureUrl) {
+      elements.chatProfileImg.src = chat.profilePictureUrl;
+      elements.chatProfileImg.style.display = 'block';
+      elements.chatProfilePicture.querySelector('.profile-placeholder').style.display = 'none';
+    } else {
+      // Try to fetch profile picture from API
+      if (state.sessionId && chat?.jid) {
+        const profileUrl = await fetchProfilePicture(chat.jid);
+        if (profileUrl) {
+          elements.chatProfileImg.src = profileUrl;
+          elements.chatProfileImg.style.display = 'block';
+          elements.chatProfilePicture.querySelector('.profile-placeholder').style.display = 'none';
+        } else {
+          // Show placeholder if no profile picture
+          elements.chatProfileImg.style.display = 'none';
+          elements.chatProfilePicture.querySelector('.profile-placeholder').style.display = 'flex';
+        }
+      } else {
+        // Show placeholder
+        elements.chatProfileImg.style.display = 'none';
+        elements.chatProfilePicture.querySelector('.profile-placeholder').style.display = 'flex';
+      }
+    }
+  } catch (error) {
+    console.error('Error updating profile picture:', error);
+    // Show placeholder on error
+    elements.chatProfileImg.style.display = 'none';
+    if (elements.chatProfilePicture.querySelector('.profile-placeholder')) {
+      elements.chatProfilePicture.querySelector('.profile-placeholder').style.display = 'flex';
+    }
+  }
+}
+
+async function fetchProfilePicture(jid) {
+  try {
+    const response = await callApi(`/session/${encodeURIComponent(state.sessionId)}/profile-picture/${encodeURIComponent(jid)}`);
+    return response.profilePictureUrl || null;
+  } catch (error) {
+    console.error('Error fetching profile picture:', error);
+    return null;
+  }
+}
 
 function scrollToBottom(smooth = true) {
   elements.messageList.scrollTo({

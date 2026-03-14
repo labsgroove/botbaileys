@@ -600,4 +600,31 @@ export class ChatStore {
         }
         chat.meta.unread = 0;
     }
+    static setProfilePictureUrl(sessionId, jid, profilePictureUrl) {
+        const session = ensureSession(sessionId);
+        const chat = ensureChat(session, jid);
+        if (!chat) {
+            return;
+        }
+        chat.meta.profilePictureUrl = profilePictureUrl;
+    }
+    static getProfilePictureUrl(sessionId, jid) {
+        const session = ensureSession(sessionId);
+        const resolvedJid = resolveJid(session, jid);
+        if (!resolvedJid) {
+            return undefined;
+        }
+        return session.meta[resolvedJid]?.profilePictureUrl;
+    }
+    static updateProfilePictureUrl(sessionId, jid, profilePictureUrl) {
+        const session = ensureSession(sessionId);
+        const chat = ensureChat(session, jid);
+        if (!chat) {
+            return;
+        }
+        // Só atualizar se a URL for diferente da atual
+        if (profilePictureUrl && chat.meta.profilePictureUrl !== profilePictureUrl) {
+            chat.meta.profilePictureUrl = profilePictureUrl;
+        }
+    }
 }

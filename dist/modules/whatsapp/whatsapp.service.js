@@ -230,6 +230,10 @@ export class WhatsAppService {
             onContactUpdate: (contact) => {
                 ChatStore.upsertContact(sessionId, contact);
                 ChatPersistenceService.persistContactUpdate(sessionId, contact);
+                // Carregar foto de perfil se houver atualização de contato
+                if (contact.jid) {
+                    WhatsAppService.loadProfilePictureAsync(sessionId, contact.jid);
+                }
             },
             onMessageUpdate: (update) => {
                 ChatStore.updateMessage(sessionId, update);
@@ -452,6 +456,34 @@ export class WhatsAppService {
         };
         sessionStates.set(sessionId, initialState);
         return initialState;
+    }
+    static async getProfilePictureUrl(sessionId, jid) {
+        const session = sessions.get(sessionId);
+        if (!session) {
+            throw new Error("Sessão não encontrada");
+        }
+        try {
+            // Importar o ProfileService dinamicamente para evitar dependência circular
+            const { ProfileService } = await import("../profile/profile.service");
+            const profileService = new ProfileService(session, sessionId);
+            return await profileService.getProfilePictureUrl(jid);
+        }
+        catch (error) {
+            logger.error(`Error getting profile picture for ${jid}:`, error);
+            return null;
+        }
+    }
+    static async loadProfilePictureAsync(sessionId, jid) {
+        // Carregar foto de perfil em background sem bloquear
+        try {
+            const profilePictureUrl = await this.getProfilePictureUrl(sessionId, jid);
+            if (profilePictureUrl) {
+                ChatStore.setProfilePictureUrl(sessionId, jid, profilePictureUrl);
+            }
+        }
+        catch (error) {
+            logger.error(`Error loading profile picture async for ${jid}:`, error);
+        }
     }
     static async reconnectSession(sessionId) {
         if (reconnecting.has(sessionId)) {

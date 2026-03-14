@@ -143,10 +143,23 @@
             <main class="chat-panel">
                 <header id="chat-header" class="chat-header">
                     <div class="chat-header-left">
-                        <h2 id="chat-header-title">Selecione uma conversa</h2>
-                        <p id="chat-header-subtitle">
-                            Escolha um contato para abrir o historico.
-                        </p>
+                        <div class="chat-header-info">
+                            <div id="chat-profile-picture" class="chat-profile-picture hidden">
+                                <img id="chat-profile-img" src="" alt="Profile" class="profile-img">
+                                <div class="profile-placeholder">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                        <circle cx="12" cy="7" r="4"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="chat-header-text">
+                                <h2 id="chat-header-title">Selecione uma conversa</h2>
+                                <p id="chat-header-subtitle">
+                                    Escolha um contato para abrir o historico.
+                                </p>
+                            </div>
+                        </div>
                     </div>
                     <div class="chat-header-actions">
                         <button id="business-toggle-btn" class="header-btn" type="button" title="Opções de Business">

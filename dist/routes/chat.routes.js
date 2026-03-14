@@ -130,4 +130,37 @@ router.get("/session/:id/history/:jid", async (req, res) => {
         res.status(500).json({ error: "Erro ao buscar histórico" });
     }
 });
+// FOTO DE PERFIL DO CONTATO
+router.get("/session/:id/profile-picture/:jid", authenticateToken, async (req, res) => {
+    const { id, jid } = req.params;
+    if (typeof id !== 'string' || typeof jid !== 'string') {
+        return res.status(400).json({ error: "Parâmetros inválidos" });
+    }
+    const session = WhatsAppService.getSession(id);
+    if (!session) {
+        return res.status(404).json({ error: "Sessão não encontrada" });
+    }
+    try {
+        // Primeiro verificar se já tem no ChatStore
+        const cachedUrl = ChatStore.getProfilePictureUrl(id, jid);
+        if (cachedUrl) {
+            return res.json({ profilePictureUrl: cachedUrl });
+        }
+        // Buscar foto de perfil usando o serviço
+        const profilePictureUrl = await WhatsAppService.getProfilePictureUrl(id, jid);
+        if (profilePictureUrl) {
+            // Armazenar no cache
+            ChatStore.setProfilePictureUrl(id, jid, profilePictureUrl);
+            return res.json({ profilePictureUrl });
+        }
+        // Retornar null se não encontrar foto de perfil
+        return res.json({ profilePictureUrl: null });
+    }
+    catch (error) {
+        console.error("Erro ao buscar foto de perfil:", error);
+        return res.status(500).json({
+            error: error?.message || "Erro ao buscar foto de perfil"
+        });
+    }
+});
 export default router;
