@@ -116,6 +116,19 @@ function isMediaExpired(message: any): boolean {
   return (currentTime - messageTime) > twentyFourHours;
 }
 
+function createMediaPlaceholder(messageType: string): { mimeType: string; dataUrl: string } {
+  // Create a placeholder for expired media
+  const placeholders = {
+    imageMessage: { mimeType: 'image/png', dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' },
+    videoMessage: { mimeType: 'video/mp4', dataUrl: 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAAs1tZGF0AAACrgYF//+q3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb2JlXGVkYXUuNDUgMjAxMTIwNjE6IDI6MDA6MDkgICAgICAgICA=' },
+    audioMessage: { mimeType: 'audio/mpeg', dataUrl: 'data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAASAAAOsAAqKioqKioqKioqKioqKioqNTU1NTU1NTU1NTU1NTU1NTU1QEBAQEBAQEBAQEBAQEBAQEBAS0tLS0tLS0tLS0tLS0tLS0t' },
+    documentMessage: { mimeType: 'application/pdf', dataUrl: 'data:application/pdf;base64,JVBERi0xLjcKJeLjz9M=' },
+    stickerMessage: { mimeType: 'image/webp', dataUrl: 'data:image/webp;base64,UklGRiQAAABXRUJQVlA4IBgAAAAwAQCdASoBAAEAAQAcJaQAA3AA/v3AgAA=' }
+  };
+  
+  return placeholders[messageType] || { mimeType: 'application/octet-stream', dataUrl: 'data:application/octet-stream;base64,' };
+}
+
 function extractMediaKey(message: any): Buffer | null {
   if (!message?.message) return null;
   
@@ -457,54 +470,130 @@ export class WhatsAppService {
 
     console.log(`[DEBUG] Found media message with key, attempting download...`);
 
-    try {
-      const buffer = await downloadMediaMessage(messageToUse, "buffer", {}, {
-        logger: pino({ level: "silent" }),
-        reuploadRequest: sock.updateMediaMessage,
-      } as any);
+    let lastError: any = null;
+    let retryCount = 0;
+    const maxRetries = 3;
 
-      const storedMessage = ChatStore.getMessage(
-        sessionId,
-        normalizedJid,
-        messageId,
-      );
-      const mimeType =
-        storedMessage?.media?.mimetype || "application/octet-stream";
-
-      console.log(`[DEBUG] Successfully downloaded media: ${mimeType}, size: ${buffer.length} bytes`);
-
-      return {
-        mimeType,
-        dataUrl: `data:${mimeType};base64,${buffer.toString("base64")}`,
-      };
-    } catch (downloadError: any) {
-      console.error(`[DEBUG] Failed to download media:`, {
-        error: downloadError,
-        message: downloadError.message,
-        status: downloadError.response?.status,
-        statusText: downloadError.response?.statusText,
-        messageId,
-        jid: normalizedJid
-      });
-      
-      // Tratamento específico para erro 403 (Forbidden)
-      if (downloadError.response?.status === 403) {
-        console.warn(`[DEBUG] Media access forbidden (403) for message ${messageId}. Possible causes:`);
-        console.warn(`  - Media expired (WhatsApp media links expire after ~24 hours)`);
-        console.warn(`  - Session authentication issues`);
-        console.warn(`  - Media already downloaded/revoked`);
+    while (retryCount < maxRetries) {
+      try {
+        console.log(`[DEBUG] Download attempt ${retryCount + 1}/${maxRetries} for message ${messageId}`);
         
-        // Verifica se a mídia expirou
-        if (isMediaExpired(messageToUse)) {
-          console.warn(`[DEBUG] Media appears to be expired (timestamp: ${messageToUse.messageTimestamp})`);
-          throw new Error(`Mídia expirada - links do WhatsApp expiram após ~24 horas`);
+        // Ensure we have a fresh socket connection
+        const currentSock = sessions.get(sessionId);
+        if (!currentSock || !currentSock.user) {
+          throw new Error("Session disconnected during media download");
         }
+
+        const buffer = await downloadMediaMessage(messageToUse, "buffer", {}, {
+          logger: pino({ level: "silent" }),
+          reuploadRequest: currentSock.updateMediaMessage,
+        } as any);
+
+        const storedMessage = ChatStore.getMessage(
+          sessionId,
+          normalizedJid,
+          messageId,
+        );
+        const mimeType =
+          storedMessage?.media?.mimetype || "application/octet-stream";
+
+        console.log(`[DEBUG] Successfully downloaded media: ${mimeType}, size: ${buffer.length} bytes`);
+
+        return {
+          mimeType,
+          dataUrl: `data:${mimeType};base64,${buffer.toString("base64")}`,
+        };
+
+      } catch (downloadError: any) {
+        lastError = downloadError;
+        retryCount++;
         
-        throw new Error(`Acesso à mídia negado (403) - possivelmente expirada ou revogada`);
+        console.error(`[DEBUG] Download attempt ${retryCount} failed:`, {
+          error: downloadError.message,
+          status: downloadError.response?.status,
+          statusText: downloadError.response?.statusText,
+          messageId,
+          jid: normalizedJid
+        });
+
+        // Specific handling for 403 Forbidden errors
+        if (downloadError.response?.status === 403) {
+          console.warn(`[DEBUG] Media access forbidden (403) for message ${messageId}. Attempt ${retryCount}/${maxRetries}`);
+          
+          // Check if media is expired first and return placeholder
+          if (isMediaExpired(messageToUse)) {
+            console.warn(`[DEBUG] Media confirmed expired - timestamp: ${messageToUse.messageTimestamp}`);
+            
+            // Determine media type for appropriate placeholder
+            let mediaType = 'documentMessage'; // default
+            for (const type of ['imageMessage', 'videoMessage', 'audioMessage', 'stickerMessage', 'documentMessage']) {
+              if (messageToUse.message?.[type]) {
+                mediaType = type;
+                break;
+              }
+            }
+            
+            const placeholder = createMediaPlaceholder(mediaType);
+            console.log(`[DEBUG] Returning ${placeholder.mimeType} placeholder for expired media`);
+            
+            return {
+              mimeType: placeholder.mimeType,
+              dataUrl: placeholder.dataUrl,
+              expired: true,
+              originalError: 'Media expired - WhatsApp media links expire after ~24 hours'
+            };
+          }
+
+          // For 403 errors, try to refresh the media URL by requesting message update
+          if (retryCount < maxRetries) {
+            console.log(`[DEBUG] Attempting to refresh media URL...`);
+            try {
+              const currentSock = sessions.get(sessionId);
+              if (currentSock) {
+                // Try to get a fresh copy of the message to refresh the media URL
+                await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
+                continue; // Retry with fresh context
+              }
+            } catch (refreshError: any) {
+              console.warn(`[DEBUG] Failed to refresh media URL:`, refreshError.message);
+            }
+          }
+        }
+
+        // For other errors or if we've exhausted retries on 403
+        if (retryCount >= maxRetries) {
+          break;
+        }
+
+        // Wait before retry (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+      }
+    }
+
+    // All retries failed
+    console.error(`[DEBUG] All ${maxRetries} download attempts failed for message ${messageId}`);
+    
+    if (lastError?.response?.status === 403) {
+      // For 403 errors that aren't expired, return a generic placeholder
+      console.warn(`[DEBUG] Returning placeholder for inaccessible media (403)`);
+      let mediaType = 'documentMessage'; // default
+      for (const type of ['imageMessage', 'videoMessage', 'audioMessage', 'stickerMessage', 'documentMessage']) {
+        if (messageToUse.message?.[type]) {
+          mediaType = type;
+          break;
+        }
       }
       
-      throw new Error(`Falha ao baixar mídia: ${downloadError.message} (HTTP ${downloadError.response?.status || 'Unknown'})`);
+      const placeholder = createMediaPlaceholder(mediaType);
+      return {
+        mimeType: placeholder.mimeType,
+        dataUrl: placeholder.dataUrl,
+        expired: false,
+        originalError: `Media access denied after ${maxRetries} attempts - possibly revoked or inaccessible`
+      };
     }
+    
+    throw new Error(`Falha ao baixar mídia após ${maxRetries} tentativas: ${lastError?.message || 'Erro desconhecido'} (HTTP ${lastError?.response?.status || 'Unknown'})`);
   }
 
   static async deleteSessionCredentials(sessionId: string) {

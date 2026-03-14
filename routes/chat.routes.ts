@@ -117,6 +117,16 @@ router.get("/session/:id/media/:jid/:messageId", async (req, res) => {
 
   try {
     const media = await WhatsAppService.getMediaContent(id, jid, messageId);
+    
+    // If media is a placeholder (expired or inaccessible), include metadata
+    if (media.expired || media.originalError) {
+      return res.json({
+        ...media,
+        placeholder: true,
+        warning: media.originalError
+      });
+    }
+    
     return res.json(media);
   } catch (error: any) {
     return res.status(404).json({
