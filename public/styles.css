@@ -1730,55 +1730,6 @@ body {
     min-width: 0;
 }
 
-.chat-header-info {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.chat-header-text {
-    flex: 1;
-    min-width: 0;
-}
-
-.chat-profile-picture {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    overflow: hidden;
-    flex-shrink: 0;
-    position: relative;
-    background: var(--surface-panel-soft);
-    border: 2px solid var(--border-soft);
-}
-
-.chat-profile-picture.hidden {
-    display: none;
-}
-
-.profile-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 50%;
-}
-
-.profile-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, var(--surface-panel-soft), var(--surface-panel));
-    color: var(--text-muted);
-    border-radius: 50%;
-}
-
-.profile-placeholder svg {
-    width: 20px;
-    height: 20px;
-}
-
 .chat-header-actions {
     display: flex;
     gap: 8px;
@@ -1819,16 +1770,7 @@ body {
     }
 }
 
-/* Mobile only elements */
-.mobile-only {
-    display: none;
-}
-
 @media (max-width: 680px) {
-    .mobile-only {
-        display: block;
-    }
-    
     .attach-options {
         grid-template-columns: repeat(2, 1fr);
     }
@@ -1846,81 +1788,6 @@ body {
         right: 8px;
         left: 8px;
         min-width: auto;
-    }
-    
-    /* Melhorias mobile */
-    .sidebar {
-        width: 100%;
-        max-width: 320px;
-    }
-    
-    .chat-area {
-        margin-left: 0;
-    }
-    
-    .message-composer {
-        padding: 12px;
-    }
-    
-    .connect-card {
-        margin: 20px;
-        padding: 24px;
-    }
-    
-    .chat-message {
-        max-width: 85%;
-    }
-}
-
-/* Tablet improvements */
-@media (min-width: 681px) and (max-width: 1024px) {
-    .sidebar {
-        width: 320px;
-    }
-    
-    .chat-area {
-        margin-left: 320px;
-    }
-    
-    .message-composer {
-        padding: 16px;
-    }
-}
-
-/* Large mobile */
-@media (max-width: 480px) {
-    .sidebar {
-        width: 100%;
-        position: fixed;
-        z-index: 100;
-        transform: translateX(-100%);
-        transition: transform 0.3s ease;
-    }
-    
-    .sidebar.open {
-        transform: translateX(0);
-    }
-    
-    .chat-area {
-        margin-left: 0;
-        width: 100%;
-    }
-    
-    .message-composer {
-        padding: 8px;
-    }
-    
-    .connect-card {
-        margin: 12px;
-        padding: 16px;
-    }
-    
-    .chat-message {
-        max-width: 90%;
-    }
-    
-    .emoji-grid {
-        grid-template-columns: repeat(4, 1fr);
     }
 }
 

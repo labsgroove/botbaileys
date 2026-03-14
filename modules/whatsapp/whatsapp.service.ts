@@ -6,7 +6,6 @@ import {
 import { existsSync, readdirSync, rmSync } from "fs";
 import path from "path";
 import pino from "pino";
-import { logger } from "../../utils/logger";
 import { ChatStore } from "../chat/chat.store";
 import { ChatPersistenceService } from "../chat/chat.persistence.service";
 import { createSession } from "./session.manager";
@@ -254,7 +253,7 @@ export class WhatsAppService {
         // Processa mensagem com IA se estiver habilitado
         if (message.text && message.text.trim().length > 0) {
           AIConversationService.processIncomingMessage(sessionId, message.jid, message.text)
-            .catch(error => logger.error('Error in AI processing', { error: error.message, sessionId, jid: message.jid }));
+            .catch(error => console.error('Error in AI processing:', error));
         }
       },
       onHistoryMessage: (message) => {
@@ -292,11 +291,6 @@ export class WhatsAppService {
       onContactUpdate: (contact) => {
         ChatStore.upsertContact(sessionId, contact);
         ChatPersistenceService.persistContactUpdate(sessionId, contact);
-        
-        // Carregar foto de perfil se houver atualização de contato
-        if (contact.jid) {
-          WhatsAppService.loadProfilePictureAsync(sessionId, contact.jid);
-        }
       },
       onMessageUpdate: (update) => {
         ChatStore.updateMessage(sessionId, update);
@@ -575,36 +569,6 @@ export class WhatsAppService {
 
     sessionStates.set(sessionId, initialState);
     return initialState;
-  }
-
-  static async getProfilePictureUrl(sessionId: string, jid: string): Promise<string | null> {
-    const session = sessions.get(sessionId);
-    
-    if (!session) {
-      throw new Error("Sessão não encontrada");
-    }
-
-    try {
-      // Importar o ProfileService dinamicamente para evitar dependência circular
-      const { ProfileService } = await import("../profile/profile.service");
-      const profileService = new ProfileService(session, sessionId);
-      return await profileService.getProfilePictureUrl(jid);
-    } catch (error) {
-      logger.error(`Error getting profile picture for ${jid}:`, error);
-      return null;
-    }
-  }
-
-  private static async loadProfilePictureAsync(sessionId: string, jid: string): Promise<void> {
-    // Carregar foto de perfil em background sem bloquear
-    try {
-      const profilePictureUrl = await this.getProfilePictureUrl(sessionId, jid);
-      if (profilePictureUrl) {
-        ChatStore.setProfilePictureUrl(sessionId, jid, profilePictureUrl);
-      }
-    } catch (error) {
-      logger.error(`Error loading profile picture async for ${jid}:`, error);
-    }
   }
 
   private static async reconnectSession(sessionId: string) {

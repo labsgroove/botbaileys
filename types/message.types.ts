@@ -106,7 +106,6 @@ export type ContactUpdate = {
   name?: string;
   notify?: string;
   verifiedName?: string;
-  profilePictureUrl?: string;
 };
 
 export type ChatMeta = {
@@ -116,7 +115,6 @@ export type ChatMeta = {
   lastTimestamp: number;
   lastMessage: string;
   lastMessageType?: MessageKind;
-  profilePictureUrl?: string;
 };
 
 export type SessionEvent = {

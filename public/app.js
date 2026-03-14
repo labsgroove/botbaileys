@@ -11,7 +11,6 @@ const state = {
   pendingMedia: new Set(),
   currentUser: null,
   accessToken: null,
-  sidebarOpen: false,
 };
 
 // Logout function
@@ -114,8 +113,6 @@ const elements = {
   chatList: document.getElementById("chat-list"),
   chatHeaderTitle: document.getElementById("chat-header-title"),
   chatHeaderSubtitle: document.getElementById("chat-header-subtitle"),
-  chatProfilePicture: document.getElementById("chat-profile-picture"),
-  chatProfileImg: document.getElementById("chat-profile-img"),
   messageList: document.getElementById("message-list"),
   messageComposer: document.getElementById("message-composer"),
   messageInput: document.getElementById("message-input"),
@@ -127,10 +124,6 @@ const elements = {
   aiConfigBtn: document.getElementById("ai-config-btn"),
   aiToggleBtn: document.getElementById("ai-toggle-btn"),
   logoutBtn: document.getElementById("logout-btn"),
-  // Mobile elements
-  sidebar: document.querySelector(".sidebar"),
-  menuToggleBtn: document.getElementById("menu-toggle-btn"),
-  chatArea: document.querySelector(".chat-area"),
   // Hidden inputs
   jidInput: document.getElementById("jid-input"),
   messageType: document.getElementById("message-type"),
@@ -1173,10 +1166,6 @@ const renderMessages = throttle(() => {
     elements.chatHeaderTitle.textContent = "Selecione uma conversa";
     elements.chatHeaderSubtitle.textContent = "Escolha um contato para abrir o historico.";
     elements.messageList.innerHTML = '<div class="message-empty">Projeto desenvolvido por Rodrigo Marafon.</div>';
-    // Hide profile picture when no chat is selected
-    if (elements.chatProfilePicture) {
-      elements.chatProfilePicture.classList.add('hidden');
-    }
     return;
   }
 
@@ -1189,9 +1178,6 @@ const renderMessages = throttle(() => {
   if (elements.chatHeaderTitle) elements.chatHeaderTitle.textContent = contactName;
   if (elements.chatHeaderSubtitle) elements.chatHeaderSubtitle.textContent = lastSeenText || state.activeJid;
   if (elements.jidInput) elements.jidInput.value = state.activeJid;
-
-  // Update profile picture
-  updateProfilePicture(chat);
 
   if (!state.activeMessages.length) {
     elements.messageList.innerHTML = '<div class="message-empty">Nenhuma mensagem neste chat ainda.</div>';
@@ -1278,57 +1264,6 @@ const renderMessages = throttle(() => {
   scrollToBottom(false);
 }, 100);
 
-async function updateProfilePicture(chat) {
-  if (!elements.chatProfilePicture || !elements.chatProfileImg) return;
-
-  try {
-    // Show profile picture container
-    elements.chatProfilePicture.classList.remove('hidden');
-
-    // Check if chat has profile picture URL
-    if (chat?.profilePictureUrl) {
-      elements.chatProfileImg.src = chat.profilePictureUrl;
-      elements.chatProfileImg.style.display = 'block';
-      elements.chatProfilePicture.querySelector('.profile-placeholder').style.display = 'none';
-    } else {
-      // Try to fetch profile picture from API
-      if (state.sessionId && chat?.jid) {
-        const profileUrl = await fetchProfilePicture(chat.jid);
-        if (profileUrl) {
-          elements.chatProfileImg.src = profileUrl;
-          elements.chatProfileImg.style.display = 'block';
-          elements.chatProfilePicture.querySelector('.profile-placeholder').style.display = 'none';
-        } else {
-          // Show placeholder if no profile picture
-          elements.chatProfileImg.style.display = 'none';
-          elements.chatProfilePicture.querySelector('.profile-placeholder').style.display = 'flex';
-        }
-      } else {
-        // Show placeholder
-        elements.chatProfileImg.style.display = 'none';
-        elements.chatProfilePicture.querySelector('.profile-placeholder').style.display = 'flex';
-      }
-    }
-  } catch (error) {
-    console.error('Error updating profile picture:', error);
-    // Show placeholder on error
-    elements.chatProfileImg.style.display = 'none';
-    if (elements.chatProfilePicture.querySelector('.profile-placeholder')) {
-      elements.chatProfilePicture.querySelector('.profile-placeholder').style.display = 'flex';
-    }
-  }
-}
-
-async function fetchProfilePicture(jid) {
-  try {
-    const response = await callApi(`/session/${encodeURIComponent(state.sessionId)}/profile-picture/${encodeURIComponent(jid)}`);
-    return response.profilePictureUrl || null;
-  } catch (error) {
-    console.error('Error fetching profile picture:', error);
-    return null;
-  }
-}
-
 function scrollToBottom(smooth = true) {
   elements.messageList.scrollTo({
     top: elements.messageList.scrollHeight,
@@ -1408,9 +1343,6 @@ const selectChat = debounce(async (jid) => {
 
     // Atualiza a lista de chats para marcar como lido
     renderChats();
-    
-    // Handle mobile sidebar behavior
-    handleMobileChatSelection();
   } catch (error) {
     console.error('Error selecting chat:', error);
     showToast('Erro ao carregar mensagens', 'error');
@@ -1600,20 +1532,8 @@ function startHistoryRefresh() {
       }
     } catch (error) {
       console.error('Error in history refresh:', error);
-      // Evita loops infinitos de erro
-      if (state.historyRefreshInterval) {
-        clearInterval(state.historyRefreshInterval);
-        state.historyRefreshInterval = null;
-        
-        // Tenta reiniciar após 30 segundos
-        setTimeout(() => {
-          if (!state.historyRefreshInterval) {
-            startHistoryRefresh();
-          }
-        }, 30000);
-      }
     }
-  }, 5000); // Reduzido para 5 segundos para melhor responsividade
+  }, 3000); // 3 segundos para melhor responsividade
 }
 
 function stopHistoryRefresh() {
@@ -2114,63 +2034,6 @@ function showNotification(message, type = 'info') {
   console.log(`[${type.toUpperCase()}] ${message}`);
 }
 
-// Mobile sidebar functions
-function toggleSidebar() {
-  if (!elements.sidebar) return;
-  
-  state.sidebarOpen = !state.sidebarOpen;
-  
-  if (state.sidebarOpen) {
-    elements.sidebar.classList.add('open');
-  } else {
-    elements.sidebar.classList.remove('open');
-  }
-}
-
-function closeSidebar() {
-  if (!elements.sidebar) return;
-  
-  state.sidebarOpen = false;
-  elements.sidebar.classList.remove('open');
-}
-
-function openSidebar() {
-  if (!elements.sidebar) return;
-  
-  state.sidebarOpen = true;
-  elements.sidebar.classList.add('open');
-}
-
-// Check if mobile and auto-close sidebar when selecting chat
-function handleMobileChatSelection() {
-  if (window.innerWidth <= 680 && state.sidebarOpen) {
-    closeSidebar();
-  }
-}
-
-// Add resize listener for mobile behavior
-addEventListenerSafe(window, 'resize', () => {
-  if (window.innerWidth > 680) {
-    // Reset sidebar state on desktop
-    state.sidebarOpen = false;
-    if (elements.sidebar) {
-      elements.sidebar.classList.remove('open');
-    }
-  }
-});
-
-// Add click outside to close sidebar
-addEventListenerSafe(document, 'click', (event) => {
-  if (window.innerWidth <= 680 && state.sidebarOpen) {
-    const isClickInsideSidebar = elements.sidebar?.contains(event.target);
-    const isMenuToggle = elements.menuToggleBtn?.contains(event.target);
-    
-    if (!isClickInsideSidebar && !isMenuToggle) {
-      closeSidebar();
-    }
-  }
-});
-
 async function boot() {
   try {
     renderMessages();
@@ -2182,11 +2045,6 @@ async function boot() {
       const sessionId = state.currentUser?.username || "default";
 
       await handleAsyncError(startSessionConnection(sessionId));
-    });
-
-    // Mobile menu toggle
-    addEventListenerSafe(elements.menuToggleBtn, "click", () => {
-      toggleSidebar();
     });
 
     // Message input auto-resize
